@@ -1,7 +1,7 @@
 ---
-API: 2.1
-OpenSesame: 3.3.12
-Platform: posix
+API: 3
+OpenSesame: 4.1.0
+Platform: nt
 ---
 set width 1280
 set uniform_coordinates yes
@@ -26,7 +26,7 @@ set font_size 24
 set font_italic no
 set font_family sans
 set font_bold no
-set experiment_path "/Users/Jelmer/Work/Vakken/MethodsCCS/MethodsCCS_2223/paradigms/Algebra"
+set experiment_path "C:/Users/rjuli/Documents/Masters CCS/Year1/Block12/Methods in CCS/algebra/methodsccs-group3"
 set disable_garbage_collection yes
 set description "Algebra for fMRI & EEG"
 set coordinates uniform
@@ -76,7 +76,6 @@ define inline_script create_problem
 	set _run "my_mouse.flush()"
 	___prepare__
 	var.trial = var.trial + 1
-	
 	# Create a problem here, depending on the type
 	
 	# type 1: x = 8
@@ -151,6 +150,7 @@ define sequence experiment
 	run instructions always
 	run start_practice always
 	run black always
+	run set_variables True
 	run practice_loop always
 	run end_of_practice always
 	run start_of_exp always
@@ -216,17 +216,28 @@ define sketchpad instructions
 define inline_script keypad_response
 	set description "Executes Python code"
 	___run__
+	timeout = var.timeout
+	num_correct = var.num_correct
+	problem_type = var.problem_type
+	
 	if var.response_problem == 'None':
 		var.RT_problem = var.response_time_problem
 		var.RT_response = 0
 		var.response = 'None'
 		var.fbstate = 'toolate'
-		
+		if num_correct == -2:
+			#switching to an easier level
+			num_correct = 0
+			if problem_type > 1:
+				problem_type = problem_type - 1
+		else:
+			num_correct = num_correct - 1
+	
 	else:
 	
 		## display canvas
 		var.time_keypad = keypad_canvas.show()
-		
+	
 		## display mouse
 		my_mouse.flush()
 		my_mouse.set_pos(pos=(0,0))
@@ -234,7 +245,6 @@ define inline_script keypad_response
 	
 		## capture response
 		response = 0
-		timeout = 2000 #timeout is 2 seconds
 	
 		## process response
 		while response == 0:
@@ -242,7 +252,16 @@ define inline_script keypad_response
 			if button == None:
 				response = 'None'
 				var.fbstate = 'tooslow'
-			
+				#giving them more time
+				timeout = timeout + 100
+				if num_correct == -2:
+					#switching to an easier level
+					num_correct = 0
+					if problem_type > 1:
+						problem_type = problem_type - 1
+				else:
+					num_correct = num_correct - 1
+	
 			else:
 				mouse_x = mouse_loc[0]
 				mouse_y = mouse_loc[1]
@@ -263,9 +282,30 @@ define inline_script keypad_response
 		if var.response == var.correct_response:
 			var.correct = 1
 			var.fbstate = 'correct'
-			
+			#speeding up
+			timeout = timeout - 100
+			if num_correct == 2:
+				#switching to a harder level
+				num_correct = 0
+				if problem_type < 5:
+					problem_type = problem_type + 1
+			else:
+				num_correct = num_correct + 1
 		elif var.response != 'None':
 			var.fbstate = 'wrong'
+			#giving them more time
+			timeout = timeout + 100
+			if num_correct == -2:
+				#switching to an easier level
+				num_correct = 0
+				if problem_type > 1:
+					problem_type = problem_type - 1
+			else:
+				num_correct = num_correct - 1
+	
+	var.num_correct = num_correct
+	var.timeout = timeout
+	var.problem_type = problem_type
 	__end__
 	set _prepare ""
 
@@ -363,6 +403,22 @@ define sketchpad problem
 	set description "Displays stimuli"
 	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="[cur_problem]" x=0 y=0 z_index=0
 
+define inline_script set_variables
+	set description "Executes Python code"
+	___run__
+	# define the starting values for timeout and
+	# num_correct
+	# 0 is the default. Every time a response is correct,
+	# this variable goes up by 1. If it reaches 3, a higher
+	# difficulty is unlocked. If it reaches -3, a lower difficulty is unlocked
+	# timeout starts at 2000ms, changes by 200ms depending on whether
+	# response is correct or not every trial.
+	var.num_correct = 0
+	var.timeout = 2000
+	var.problem_type = 1
+	__end__
+	set _prepare ""
+
 define sketchpad start_of_exp
 	set duration mouseclick
 	set description "Displays stimuli"
@@ -408,8 +464,8 @@ define loop trial_loop_experiment
 define loop trial_loop_practice
 	set source table
 	set skip 0
-	set repeat 4
-	set order random
+	set repeat 20
+	set order sequential
 	set offset no
 	set item trial_sequence
 	set description "A single block of trials"
@@ -417,22 +473,22 @@ define loop trial_loop_practice
 	set continuous no
 	set column_order "problem_type;Retrieval;Transformation"
 	set break_if_on_first yes
-	set break_if never
-	setcycle 0 problem_type 1
-	setcycle 0 Retrieval none
-	setcycle 0 Transformation none
-	setcycle 1 problem_type 2
-	setcycle 1 Retrieval minimal
-	setcycle 1 Transformation one
-	setcycle 2 problem_type 3
-	setcycle 2 Retrieval one
-	setcycle 2 Transformation none
-	setcycle 3 problem_type 4
-	setcycle 3 Retrieval one
-	setcycle 3 Transformation one
-	setcycle 4 problem_type 5
-	setcycle 4 Retrieval two
-	setcycle 4 Transformation two
+	set break_if False
+	setcycle 0 test 1
+	setcycle 0 Retrieval one
+	setcycle 0 Transformation one
+	setcycle 1 test ""
+	setcycle 1 Retrieval ""
+	setcycle 1 Transformation ""
+	setcycle 2 test ""
+	setcycle 2 Retrieval ""
+	setcycle 2 Transformation ""
+	setcycle 3 test ""
+	setcycle 3 Retrieval ""
+	setcycle 3 Transformation ""
+	setcycle 4 test ""
+	setcycle 4 Retrieval ""
+	setcycle 4 Transformation ""
 	run trial_sequence
 
 define sequence trial_sequence
