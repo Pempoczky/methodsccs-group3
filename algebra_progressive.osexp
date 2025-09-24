@@ -335,6 +335,7 @@ define logger logger
 	log correct_response
 	log response
 	log correct
+	log Condition
 	log RT_problem
 	log RT_response
 	log timeout
@@ -663,6 +664,7 @@ define inline_script set_variables
 	var.problem_type = 1
 	var.trials_since_levelup = 0
 	var.noprogress = False
+	var.Condition = "Progressive"
 	__end__
 	set _prepare ""
 
