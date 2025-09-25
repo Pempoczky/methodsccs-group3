@@ -239,7 +239,6 @@ define sequence experiment
 	run end_of_experiment always
 
 define loop experimental_loop
-	set source_file ""
 	set source table
 	set skip 0
 	set repeat 10
@@ -859,7 +858,7 @@ define inline_script set_variables
 	var.trial_index_5 = 0
 	var.trial_index_inlevel = 0
 	var.num_in_levelfive = 0
-	var.noprogress = False
+	var.noprogress = 0
 	var.Condition = "Progressive"
 	__end__
 	set _prepare ""
@@ -878,9 +877,9 @@ define sketchpad start_practice
 define inline_script switchlevel_inline_script
 	set description "Executes Python code"
 	___run__
-	if var.fbstate == 'tooslow' or var.fbstate == 'wrong':
-		if var.trials_since_levelup == 30:
+	if var.trials_since_levelup == 30:
 			var.noprogress = 1
+	if var.fbstate == 'tooslow' or var.fbstate == 'wrong':
 		if var.num_correct == -9:
 			#switching to an easier level
 			var.num_correct = 0
@@ -901,7 +900,6 @@ define inline_script switchlevel_inline_script
 	set _prepare ""
 
 define loop trial_loop
-	set source_file ""
 	set source table
 	set skip 0
 	set repeat 10
@@ -973,7 +971,6 @@ define loop trial_loop_practice
 	run trial_sequence
 
 define loop trial_practice_loop
-	set source_file ""
 	set source table
 	set skip 0
 	set repeat 2
