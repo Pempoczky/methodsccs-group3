@@ -306,11 +306,6 @@ define sketchpad instructions
 define inline_script keypad_response
 	set description "Executes Python code"
 	___run__
-	num_correct = var.num_correct
-	problem_type = var.problem_type
-	trials_since_levelup = var.trials_since_levelup
-	num_in_levelfive = var.num_in_levelfive
-	
 	
 	
 	##display text
@@ -378,10 +373,6 @@ define inline_script keypad_response
 	elif var.response != 'None':
 		var.fbstate = 'wrong'
 	
-	var.num_correct = num_correct
-	var.timeout = timeout
-	var.problem_type = problem_type
-	var.trials_since_levelup = trials_since_levelup
 	keypad_canvas.clear()
 	__end__
 	set _prepare ""
