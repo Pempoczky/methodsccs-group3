@@ -211,7 +211,7 @@ define sketchpad instructions
 	set description "Displays stimuli"
 	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="In this experiment you are asked to solve algebra questions such as:<br /><br />8x = 4<br /><br />In each trial, you will see a problem appear, with a circular keypad below it in the center. <br />As soon as you know the answer, you can select your response by clicking it on the keypad.<br /><br />If you cannot answer in 5 seconds, your answer will be counted as incorrect.<br /><br />After each response, you'll receive feedback, and then a fixation cross will appear, and the experiment will wait until you click to move on to the next problem." x=0 y=32 z_index=0
 	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=36 html=yes show_if=always text="Welcome!" x=0 y=-224 z_index=0
-	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="Click anywhere to continue." x=0 y=352 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="Click anywhere to continue." x=0 y=300 z_index=0
 
 define inline_script keypad_response
 	set description "Executes Python code"
@@ -388,7 +388,7 @@ define sketchpad start_practice
 	set start_response_interval no
 	set duration mouseclick
 	set description "A sketchpad containing the instructions for the participant"
-	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="The experiment begins with a short practice session.<br />.<br /><br /><br />Click anywhere to start the practice." x=0 y=32 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="The experiment begins with a short practice session.<br /><br />Click anywhere to start the practice." x=0 y=32 z_index=0
 
 define loop trial_loop_experiment
 	set source_file ""
