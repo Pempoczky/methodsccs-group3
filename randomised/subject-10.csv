@@ -1,8 +1,0 @@
-"Condition","RT_response","Retrieval","Transformation","block","correct","correct_response","cur_problem","datetime","experiment_file","practice","problem_type","response","subject_nr","trial"
-"Randomised","2395","minimal","one","0","0","1","x + 1 = 2","Wed Sep 24 13:26:52 2025","algebra_randomised.osexp","yes","2","1","10","1"
-"Randomised","1226","none","none","0","0","3","x = 3","Wed Sep 24 13:26:52 2025","algebra_randomised.osexp","yes","1","1","10","2"
-"Randomised","1762","none","none","0","0","9","x = 9","Wed Sep 24 13:26:52 2025","algebra_randomised.osexp","yes","1","1","10","3"
-"Randomised","1497","minimal","one","0","0","7","x + 3 = 10","Wed Sep 24 13:26:52 2025","algebra_randomised.osexp","yes","2","1","10","4"
-"Randomised","3378","one","none","1","0","8","x = 56 / 7","Wed Sep 24 13:26:52 2025","algebra_randomised.osexp","no","3","1","10","5"
-"Randomised","3596","none","none","1","0","9","x = 9","Wed Sep 24 13:26:52 2025","algebra_randomised.osexp","no","1","1","10","6"
-"Randomised","2233","minimal","one","1","0","5","x + 4 = 9","Wed Sep 24 13:26:52 2025","algebra_randomised.osexp","no","2","1","10","7"
