@@ -85,10 +85,27 @@ define inline_script create_problem
 	set _run "my_mouse.flush()"
 	___prepare__
 	var.trial = var.trial + 1
-	var.trial_n_fortype + 1
-	var.trials_since_levelup = var.trials_since_levelup + 1
-	if problem_type == 5:
+	#var.trial_indices[int(var.problem_type) - 1] = var.trial_indices[int(var.problem_type) - 1] + 1
+	
+	#horrible bastard code because lists don't work in opensesame somehow
+	
+	if var.problem_type == 1:
+		var.trial_index_1 = var.trial_index_1 + 1
+		var.trial_index_inlevel = var.trial_index_1
+	elif var.problem_type == 2:
+		var.trial_index_2 = var.trial_index_2 + 1
+		var.trial_index_inlevel = var.trial_index_2
+	elif var.problem_type == 3:
+		var.trial_index_3 = var.trial_index_3 + 1
+		var.trial_index_inlevel = var.trial_index_3
+	elif var.problem_type == 4:
+		var.trial_index_4 = var.trial_index_4 + 1
+		var.trial_index_inlevel = var.trial_index_4
+	elif var.problem_type == 5:
+		var.trial_index_5 = var.trial_index_5 + 1
 		var.num_in_levelfive = var.num_in_levelfive + 1
+		var.trial_index_inlevel = var.trial_index_5
+	var.trials_since_levelup = var.trials_since_levelup + 1
 	# Create a problem here, depending on the type
 	
 	# type 1: x = 8
@@ -119,7 +136,7 @@ define inline_script create_problem
 	elif var.problem_type == 5:
 		divider = random.randint(2,9)
 		if random.randint(0,1) == 0:
-			lefthand = random.randint(1,9)	
+			lefthand = random.randint(1,9)
 			var.cur_problem = str(divider) + 'x + ' + str(lefthand) + ' = ' + str(var.correct_response * divider + lefthand)
 		else:
 			var.correct_response = random.randint(2,9) #x can't be 1
@@ -129,7 +146,7 @@ define inline_script create_problem
 	var.correct_response = str(var.correct_response)
 	
 	
-	# Determine jitter fixation length: for fMRI 2 seconds, for EEG + behav uniform between 400-600 ms. 
+	# Determine jitter fixation length: for fMRI 2 seconds, for EEG + behav uniform between 400-600 ms.
 	var.fix_dur = random.randint(400,600) - 5 #-5 to correspond to refresh rate
 	__end__
 
@@ -198,13 +215,13 @@ define sketchpad end_of_experiment
 	set start_response_interval no
 	set duration keypress
 	set description "A sketchpad notifying the participant that the experiment is finished"
-	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=28 html=yes show_if=always text="You're done! Thanks for participating!" x=0 y=0 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=28 html=yes show_if=always text="You're done! Thanks for participating!<br /><br />Press any key to end the experiment." x=0 y=0 z_index=0
 
 define sketchpad end_of_practice
 	set start_response_interval no
 	set duration keypress
 	set description "A sketchpad notifying the participant that the practice phase is finished"
-	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=28 html=yes show_if=always text="That was the end of the practice,<br />please notify the experimenter." x=0 y=0 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=28 html=yes show_if=always text="That was the end of the practice.<br /> If you have any questions, notify the experimenter. <br />If not, press any key to start the experiment." x=0 y=0 z_index=0
 
 define sequence experiment
 	set flush_keyboard yes
@@ -216,7 +233,6 @@ define sequence experiment
 	run set_variables True
 	run practicee_loop True
 	run end_of_practice always
-	run start_of_exp always
 	run black always
 	run reset_variables True
 	run experimental_loop always
@@ -234,7 +250,7 @@ define loop experimental_loop
 	set continuous no
 	set column_order practice
 	set break_if_on_first yes
-	set break_if "[noprogress] or [num_in_levelfive] == 10"
+	set break_if "[noprogress] == 1 or [num_in_levelfive] == 10"
 	setcycle 0 practice no
 	run block_sequence
 
@@ -254,7 +270,7 @@ define sketchpad fixation
 	draw fixdot color=white show_if=always style=default x=0 y=0 z_index=0
 
 define sketchpad fixation_end
-	set duration 995
+	set duration mouseclick
 	set description "Displays stimuli"
 	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=38 html=yes show_if=always text="+" x=0 y=0 z_index=0
 
@@ -281,10 +297,10 @@ define inline_script flush_mouse
 define sketchpad instructions
 	set duration mouseclick
 	set description "Displays stimuli"
-	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=32 html=yes show_if=always text="For this experiment you have to solve algebra questions. <br />A question will appear on the screen and as soon as you know the value of ‘X’ you click the mouse button. <br />When you click the mouse button a circular keyboard will appear where you can select the correct value.  <br />The experiment will start with a short practice session. " x=1696 y=-352 z_index=0
-	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="In this experiment you are asked to solve algebra questions such as:<br /><br />8x = 4<br /><br />When you know the value of X, click the button on the side of the trackball. <br />A circular keypad will appear where you <br />can select your response. <br />You can select your response by moving the pointer <br />with the red ball on the trackball.<br /><br />You only have a short time to select your response,<br />so make sure you already know the answer<br />before you continue to the keypad!" x=0 y=32 z_index=0
-	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=36 html=yes show_if=always text="Welcome!" x=0 y=-224 z_index=0
-	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="Click the trackball to continue." x=0 y=352 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=32 html=yes show_if=always text="For this experiment you have to solve algebra questions. <br />A question will appear on the screen and as soon as you know the value of ‘X’ you click the mouse button. <br />When you click the mouse button a circular keyboard will appear where you can select the correct value.  <br />The experiment will start with a short practice session. " x=1696 y=-384 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="In this experiment you are asked to solve algebra questions such as:<br /><br />8x = 4<br /><br />In each trial, you will see a problem appear, with a circular keypad below it in the center. <br />As soon as you know the answer, you can select your response by clicking it on the keypad.<br /><br />If you cannot answer in 5 seconds, your answer will be counted as incorrect.<br /><br />After each response, you'll receive feedback, and then a fixation cross will appear, and the experiment will wait until you click to move on to the next problem.<br /><br />The problems will get harder as you go on, and you will only progress once you answer enough questions correctly." x=0 y=0 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=36 html=yes show_if=always text="Welcome!" x=0 y=-288 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="Click anywhere to continue." x=0 y=320 z_index=0
 
 define inline_script keypad_response
 	set description "Executes Python code"
@@ -339,13 +355,13 @@ define inline_script keypad_response
 		if button == None:
 			response = 'None'
 			#if they're wrong and haven't progressed in a while, break the loop
-			if var.trials_since_levelup > 9:
-				var.noprogress = True
+			if var.trials_since_levelup == 30:
+				var.noprogress = 1
 			var.fbstate = 'tooslow'
-			#giving them more time
-			if num_correct == -2:
+			if num_correct == -9:
 				#switching to an easier level
 				num_correct = 0
+				trial_n_fortype = 0
 				if problem_type > 1:
 					problem_type = problem_type - 1
 			else:
@@ -369,8 +385,8 @@ define inline_script keypad_response
 	if var.response == var.correct_response:
 		var.correct = 1
 		var.fbstate = 'correct'
-		if num_correct == 2:
-			#switching to a harder level
+		if num_correct == 9:
+			#progressing to a harder level
 			num_correct = 0
 			trials_since_levelup = 0
 			if problem_type < 5:
@@ -380,9 +396,9 @@ define inline_script keypad_response
 	elif var.response != 'None':
 		var.fbstate = 'wrong'
 		#if they're wrong and haven't progressed in a while, break the loop
-		if var.trials_since_levelup > 9:
-			var.noprogress = True
-		if num_correct == -2:
+		if var.trials_since_levelup == 30:
+			var.noprogress = 1
+		if num_correct == -9:
 			#switching to an easier level
 			num_correct = 0
 			if problem_type > 1:
@@ -489,6 +505,7 @@ define logger logger
 	log timeout
 	log num_correct
 	log trials_since_levelup
+	log trial_index_inlevel
 	log noprogress
 	log fbstate
 
@@ -835,7 +852,7 @@ define sketchpad problem
 define inline_script reset_variables
 	set description "Executes Python code"
 	___run__
-	# define the starting values for timeout and
+	# # define the starting values for timeout and
 	# num_correct
 	# 0 is the default. Every time a response is correct,
 	# this variable goes up by 1. If it reaches 3, a higher
@@ -847,8 +864,14 @@ define inline_script reset_variables
 	var.timeout = 5000
 	var.problem_type = 1
 	var.trials_since_levelup = 0
+	var.trial_index_1 = 0
+	var.trial_index_2 = 0
+	var.trial_index_3 = 0
+	var.trial_index_4 = 0
+	var.trial_index_5 = 0
+	var.trial_index_inlevel = 0
 	var.num_in_levelfive = 0
-	var.noprogress = False
+	var.noprogress = 0
 	var.Condition = "Progressive"
 	__end__
 	set _prepare ""
@@ -867,6 +890,12 @@ define inline_script set_variables
 	var.timeout = 5000
 	var.problem_type = 1
 	var.trials_since_levelup = 0
+	var.trial_index_1 = 0
+	var.trial_index_2 = 0
+	var.trial_index_3 = 0
+	var.trial_index_4 = 0
+	var.trial_index_5 = 0
+	var.trial_index_inlevel = 0
 	var.num_in_levelfive = 0
 	var.noprogress = False
 	var.Condition = "Progressive"
@@ -882,7 +911,7 @@ define sketchpad start_practice
 	set start_response_interval no
 	set duration mouseclick
 	set description "A sketchpad containing the instructions for the participant"
-	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="The experiment begins with a short practice session,<br />followed by four experimental blocks.<br /><br /><br />Click the trackball to start the practice session." x=0 y=32 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="The experiment begins with a short practice session.<br /><br /><br />Click anywhere to start the practice." x=0 y=32 z_index=0
 
 define loop trial_loop
 	set source table
@@ -896,7 +925,7 @@ define loop trial_loop
 	set continuous no
 	set column_order "problem_type;Retrieval;Transformation"
 	set break_if_on_first yes
-	set break_if "[noprogress] or [num_in_levelfive] == 10"
+	set break_if "[noprogress] == 1 or [num_in_levelfive] == 10"
 	setcycle 0 test 1
 	run trial_sequence_experiment
 
@@ -932,6 +961,7 @@ define loop trial_loop_experiment
 	run trial_sequence
 
 define loop trial_loop_practice
+	set source_file ""
 	set source table
 	set skip 0
 	set repeat 2
@@ -984,7 +1014,7 @@ define sequence trial_practice_sequence
 	run fixation_practice_sketchpad always
 	run flush_inline_script always
 	run keypad_response_practice_inline_script always
-	run practice_logger always
+	run logger True
 	run black__practicesketchpad always
 	run practice_feedback always
 	run practice_fixation_sketchpad always
