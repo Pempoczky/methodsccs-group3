@@ -49,6 +49,10 @@ define sketchpad black2_1
 	set duration 1
 	set description "Displays stimuli"
 
+define sketchpad black__practicesketchpad
+	set duration 1
+	set description "Displays stimuli"
+
 define sequence block1_sequence
 	set flush_keyboard yes
 	set description "A sequence containing a single block of trials followed by feedback to the participant"
@@ -81,7 +85,60 @@ define inline_script create_problem
 	set _run "my_mouse.flush()"
 	___prepare__
 	var.trial = var.trial + 1
+	var.trial_n_fortype + 1
 	var.trials_since_levelup = var.trials_since_levelup + 1
+	if problem_type == 5:
+		var.num_in_levelfive = var.num_in_levelfive + 1
+	# Create a problem here, depending on the type
+	
+	# type 1: x = 8
+	# type 2: x - 2 = 4 / x + 4 = 9
+	# type 3: x = 32/8
+	# type 4: 8x = 32
+	# type 5: 8x - 4 = 28 / 8x + 4 = 20
+	
+	var.correct = 0
+	var.correct_response = random.randint(1,9)
+	
+	if var.problem_type == 1:
+		var.cur_problem = 'x = ' + str(var.correct_response)
+	elif var.problem_type == 2:
+		if random.randint(0,1) == 0:
+			righthand = random.randint(var.correct_response + 1,10)
+			var.cur_problem = 'x + ' + str(righthand - var.correct_response) + ' = ' + str(righthand)
+		else:
+			var.correct_response = random.randint(2,9) #x can't be 1
+			lefthand = random.randint(1,var.correct_response-1)
+			var.cur_problem = 'x - ' + str(lefthand) + ' = ' + str(var.correct_response - lefthand)
+	elif var.problem_type == 3:
+		divider = random.randint(2,9)
+		var.cur_problem = 'x = ' + str(var.correct_response * divider) + ' / ' + str(divider)
+	elif var.problem_type == 4:
+		divider = random.randint(2,9)
+		var.cur_problem = str(divider) + 'x = ' + str(var.correct_response * divider)
+	elif var.problem_type == 5:
+		divider = random.randint(2,9)
+		if random.randint(0,1) == 0:
+			lefthand = random.randint(1,9)	
+			var.cur_problem = str(divider) + 'x + ' + str(lefthand) + ' = ' + str(var.correct_response * divider + lefthand)
+		else:
+			var.correct_response = random.randint(2,9) #x can't be 1
+			lefthand = random.randint(1,var.correct_response-1)
+			var.cur_problem = str(divider) + 'x - ' + str(lefthand) + ' = ' + str(var.correct_response * divider - lefthand)
+	
+	var.correct_response = str(var.correct_response)
+	
+	
+	# Determine jitter fixation length: for fMRI 2 seconds, for EEG + behav uniform between 400-600 ms. 
+	var.fix_dur = random.randint(400,600) - 5 #-5 to correspond to refresh rate
+	__end__
+
+define inline_script create_problem_practice_inline_script
+	set description "Executes Python code"
+	set _run "my_mouse.flush()"
+	___prepare__
+	var.trial = var.trial + 1
+	
 	# Create a problem here, depending on the type
 	
 	# type 1: x = 8
@@ -157,7 +214,7 @@ define sequence experiment
 	run start_practice always
 	run black always
 	run set_variables True
-	run practice_loop always
+	run practicee_loop True
 	run end_of_practice always
 	run start_of_exp always
 	run black always
@@ -166,10 +223,9 @@ define sequence experiment
 	run end_of_experiment always
 
 define loop experimental_loop
-	set source_file ""
 	set source table
 	set skip 0
-	set repeat 15
+	set repeat 10
 	set order sequential
 	set offset no
 	set item block_sequence
@@ -178,7 +234,7 @@ define loop experimental_loop
 	set continuous no
 	set column_order practice
 	set break_if_on_first yes
-	set break_if "[noprogress]"
+	set break_if "[noprogress] or [num_in_levelfive] == 10"
 	setcycle 0 practice no
 	run block_sequence
 
@@ -202,6 +258,19 @@ define sketchpad fixation_end
 	set description "Displays stimuli"
 	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=38 html=yes show_if=always text="+" x=0 y=0 z_index=0
 
+define sketchpad fixation_practice_sketchpad
+	set start_response_interval no
+	set duration "[fix_dur]"
+	set description "Displays stimuli"
+	draw fixdot color=white show_if=always style=default x=0 y=0 z_index=0
+
+define inline_script flush_inline_script
+	set description "Executes Python code"
+	___run__
+	my_mouse.flush()
+	__end__
+	set _prepare ""
+
 define inline_script flush_mouse
 	set description "Executes Python code"
 	___run__
@@ -220,93 +289,60 @@ define sketchpad instructions
 define inline_script keypad_response
 	set description "Executes Python code"
 	___run__
-	timeout = var.timeout
 	num_correct = var.num_correct
 	problem_type = var.problem_type
 	trials_since_levelup = var.trials_since_levelup
+	num_in_levelfive = var.num_in_levelfive
 	
-	if var.response_problem == 'None':
-		var.RT_problem = var.response_time_problem
-		var.RT_response = 0
-		var.response = 'None'
-		var.fbstate = 'toolate'
-		if num_correct == -2:
-			#switching to an easier level
-			num_correct = 0
-			if problem_type > 1:
-				problem_type = problem_type - 1
-		else:
-			num_correct = num_correct - 1
 	
-	else:
 	
-		## display canvas
-		var.time_keypad = keypad_canvas.show()
+	##display text
+	var.problem_display = keypad_canvas.text(var.cur_problem, x=0, y=-120, font_size=24, font_family='mono')
 	
-		## display mouse
-		my_mouse.flush()
-		my_mouse.set_pos(pos=(0,0))
-		#my_mouse.show_cursor(show=True)
+	##display keypad
+	#keys_xy = xy_grid(3, 48)
+	keys_xy = xy_circle(9,70,-85)
+	keys_val = [1,2,3,4,5,6,7,8,9]
+	button_size = 42
+	displacement = button_size/2
+	min_x = min(keys_xy)[0] - displacement
+	max_x = max(keys_xy)[0] + displacement
+	min_y = min(keys_xy)[1] - displacement
+	max_y = max(keys_xy)[1] + displacement
 	
-		## capture response
-		response = 0
+	i = 0
+	for x, y in keys_xy:
+		#keypad_canvas.rect(x-displacement, y-displacement, button_size, button_size, fill=True, color='lightslategrey') #fill grey
+		#keypad_canvas.rect(x-displacement, y-displacement, button_size, button_size, color='darkgrey') #white border
+		keypad_canvas.circle(x,y,button_size/2,fill=True,color='lightslategrey')
+		keypad_canvas.circle(x,y,button_size/2,color='darkgrey')
 	
-		## process response
-		while response == 0:
-			button, mouse_loc, mouse_time = my_mouse.get_click(buttonlist=[1], timeout=(var.time_keypad + timeout - clock.time()),visible=True)
-			if button == None:
-				response = 'None'
-				#if they're wrong and haven't progressed in a while, break the loop
-				if var.trials_since_levelup > 10:
-					var.noprogress = True
-				var.fbstate = 'tooslow'
-				#giving them more time
-				timeout = timeout + 100
-				if num_correct == -2:
-					#switching to an easier level
-					num_correct = 0
-					if problem_type > 1:
-						problem_type = problem_type - 1
-				else:
-					num_correct = num_correct - 1
+		#digit
+		keypad_canvas.text(keys_val[i],x=x,y=y)
+		i=i+1
 	
-			else:
-				mouse_x = mouse_loc[0]
-				mouse_y = mouse_loc[1]
-				#if mouse_x > min_x and mouse_x < max_x and mouse_y > min_y and mouse_y < max_y:
-				cnt = 0
-				for x, y in keys_xy:
-					if mouse_x > (x-displacement) and mouse_x < (x+displacement) and mouse_y > (y-displacement) and mouse_y < (y+displacement):
-						response = keys_val[cnt]
-						break
-					cnt = cnt + 1
+	## display canvas
+	var.time_keypad = keypad_canvas.show()
 	
-		#log RTs and response
-		var.RT_problem = var.response_time_problem
-		var.RT_response = mouse_time - var.time_keypad
-		var.response = response
-		var.total_problem = var.RT_response + var.RT_problem
-		#determine correctness
-		if var.response == var.correct_response:
-			var.correct = 1
-			var.fbstate = 'correct'
-			#speeding up
-			timeout = timeout - 100
-			if num_correct == 2:
-				#switching to a harder level
-				num_correct = 0
-				trials_since_levelup = 0
-				if problem_type < 5:
-					problem_type = problem_type + 1
-			else:
-				num_correct = num_correct + 1
-		elif var.response != 'None':
-			var.fbstate = 'wrong'
+	## display mouse
+	my_mouse.flush()
+	my_mouse.set_pos(pos=(0,0))
+	#my_mouse.show_cursor(show=True)
+	
+	## capture response
+	response = 0
+	timeout = 5000 #timeout is 5 seconds
+	
+	## process response
+	while response == 0:
+		button, mouse_loc, mouse_time = my_mouse.get_click(buttonlist=[1], timeout=(var.time_keypad + timeout - clock.time()),visible=True)
+		if button == None:
+			response = 'None'
 			#if they're wrong and haven't progressed in a while, break the loop
-			if var.trials_since_levelup > 10:
+			if var.trials_since_levelup > 9:
 				var.noprogress = True
+			var.fbstate = 'tooslow'
 			#giving them more time
-			timeout = timeout + 100
 			if num_correct == -2:
 				#switching to an easier level
 				num_correct = 0
@@ -315,10 +351,123 @@ define inline_script keypad_response
 			else:
 				num_correct = num_correct - 1
 	
+		else:
+			mouse_x = mouse_loc[0]
+			mouse_y = mouse_loc[1]
+			#if mouse_x > min_x and mouse_x < max_x and mouse_y > min_y and mouse_y < max_y:
+			cnt = 0
+			for x, y in keys_xy:
+				if mouse_x > (x-displacement) and mouse_x < (x+displacement) and mouse_y > (y-displacement) and mouse_y < (y+displacement):
+					response = keys_val[cnt]
+					break
+				cnt = cnt + 1
+	
+	#log RT and response
+	var.RT_response = mouse_time - var.time_keypad
+	var.response = response
+	#determine correctness
+	if var.response == var.correct_response:
+		var.correct = 1
+		var.fbstate = 'correct'
+		if num_correct == 2:
+			#switching to a harder level
+			num_correct = 0
+			trials_since_levelup = 0
+			if problem_type < 5:
+				problem_type = problem_type + 1
+		else:
+			num_correct = num_correct + 1
+	elif var.response != 'None':
+		var.fbstate = 'wrong'
+		#if they're wrong and haven't progressed in a while, break the loop
+		if var.trials_since_levelup > 9:
+			var.noprogress = True
+		if num_correct == -2:
+			#switching to an easier level
+			num_correct = 0
+			if problem_type > 1:
+				problem_type = problem_type - 1
+		else:
+			num_correct = num_correct - 1
+	
 	var.num_correct = num_correct
 	var.timeout = timeout
 	var.problem_type = problem_type
 	var.trials_since_levelup = trials_since_levelup
+	keypad_canvas.clear()
+	__end__
+	set _prepare ""
+
+define inline_script keypad_response_practice_inline_script
+	set description "Executes Python code"
+	___run__
+	
+	##display text
+	var.problem_display = keypad_canvas.text(var.cur_problem, x=0, y=-120, font_size=24, font_family='mono')
+	
+	##display keypad
+	#keys_xy = xy_grid(3, 48)
+	keys_xy = xy_circle(9,70,-85)
+	keys_val = [1,2,3,4,5,6,7,8,9]
+	button_size = 42
+	displacement = button_size/2
+	min_x = min(keys_xy)[0] - displacement
+	max_x = max(keys_xy)[0] + displacement
+	min_y = min(keys_xy)[1] - displacement
+	max_y = max(keys_xy)[1] + displacement
+	
+	i = 0
+	for x, y in keys_xy:
+		#keypad_canvas.rect(x-displacement, y-displacement, button_size, button_size, fill=True, color='lightslategrey') #fill grey
+		#keypad_canvas.rect(x-displacement, y-displacement, button_size, button_size, color='darkgrey') #white border
+		keypad_canvas.circle(x,y,button_size/2,fill=True,color='lightslategrey')
+		keypad_canvas.circle(x,y,button_size/2,color='darkgrey')
+	
+		#digit
+		keypad_canvas.text(keys_val[i],x=x,y=y)
+		i=i+1
+	
+	## display canvas
+	var.time_keypad = keypad_canvas.show()
+	
+	## display mouse
+	my_mouse.flush()
+	my_mouse.set_pos(pos=(0,0))
+	#my_mouse.show_cursor(show=True)
+	
+	## capture response
+	response = 0
+	timeout = 5000 #timeout is 5 seconds
+	
+	## process response
+	while response == 0:
+		button, mouse_loc, mouse_time = my_mouse.get_click(buttonlist=[1], timeout=(var.time_keypad + timeout - clock.time()),visible=True)
+		if button == None:
+			response = 'None'
+			var.fbstate = 'tooslow'
+	
+		else:
+			mouse_x = mouse_loc[0]
+			mouse_y = mouse_loc[1]
+			#if mouse_x > min_x and mouse_x < max_x and mouse_y > min_y and mouse_y < max_y:
+			cnt = 0
+			for x, y in keys_xy:
+				if mouse_x > (x-displacement) and mouse_x < (x+displacement) and mouse_y > (y-displacement) and mouse_y < (y+displacement):
+					response = keys_val[cnt]
+					break
+				cnt = cnt + 1
+	
+	#log RT and response
+	var.RT_response = mouse_time - var.time_keypad
+	var.response = response
+	#determine correctness
+	if var.response == var.correct_response:
+		var.correct = 1
+		var.fbstate = 'correct'
+	
+	elif var.response != 'None':
+		var.fbstate = 'wrong'
+	keypad_canvas.clear()
 	__end__
 	set _prepare ""
 
@@ -336,7 +485,6 @@ define logger logger
 	log response
 	log correct
 	log Condition
-	log RT_problem
 	log RT_response
 	log timeout
 	log num_correct
@@ -560,6 +708,44 @@ define sketchpad new_4_sketchpad
 	set description "Displays stimuli"
 	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=38 html=yes show_if=always text="+" x=0 y=0 z_index=0
 
+define sequence practice_bloxk_sequence
+	set flush_keyboard yes
+	set description "A sequence containing a single block of trials followed by feedback to the participant"
+	run trial_practice_loop always
+
+define feedback practice_feedback
+	set reset_variables yes
+	set duration 995
+	set description "Provides feedback to the participant"
+	draw textline center=1 color=red font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if="[fbstate] = 'wrong'" text=Wrong x=0 y=0 z_index=0
+	draw textline center=1 color=green font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if="[fbstate] = 'correct'" text="Correct!" x=0 y=0 z_index=0
+	draw textline center=1 color=red font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if="[fbstate] = 'toolate'" text="Too late!" x=0 y=0 z_index=0
+	draw textline center=1 color=red font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if="[fbstate] = 'tooslow'" text="Too slow!" x=0 y=0 z_index=0
+
+define sketchpad practice_fixation_sketchpad
+	set duration mouseclick
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=38 html=yes show_if=always text="+" x=0 y=0 z_index=0
+
+define logger practice_logger
+	set description "Logs experimental data"
+	set auto_log no
+	log experiment_file
+	log datetime
+	log subject_nr
+	log practice
+	log block
+	log trial
+	log problem_type
+	log Retrieval
+	log Transformation
+	log Condition
+	log cur_problem
+	log correct_response
+	log response
+	log correct
+	log RT_response
+
 define loop practice_loop
 	set source_file ""
 	set source table
@@ -576,6 +762,23 @@ define loop practice_loop
 	set break_if False
 	setcycle 0 practice yes
 	run block_sequence_practice
+
+define loop practicee_loop
+	set source_file ""
+	set source table
+	set skip 0
+	set repeat 1
+	set order random
+	set offset no
+	set item block_sequence_practice
+	set description "A loop containing one or more practice blocks"
+	set cycles 1
+	set continuous no
+	set column_order practice
+	set break_if_on_first yes
+	set break_if never
+	setcycle 0 practice yes
+	run practice_bloxk_sequence
 
 define inline_script preparation
 	set description "Executes Python code"
@@ -640,12 +843,13 @@ define inline_script reset_variables
 	# timeout starts at 2000ms, changes by 200ms depending on whether
 	# response is correct or not every trial.
 	
-	
 	var.num_correct = 0
-	var.timeout = 2000
+	var.timeout = 5000
 	var.problem_type = 1
 	var.trials_since_levelup = 0
+	var.num_in_levelfive = 0
 	var.noprogress = False
+	var.Condition = "Progressive"
 	__end__
 	set _prepare ""
 
@@ -660,9 +864,10 @@ define inline_script set_variables
 	# timeout starts at 2000ms, changes by 200ms depending on whether
 	# response is correct or not every trial.
 	var.num_correct = 0
-	var.timeout = 2000
+	var.timeout = 5000
 	var.problem_type = 1
 	var.trials_since_levelup = 0
+	var.num_in_levelfive = 0
 	var.noprogress = False
 	var.Condition = "Progressive"
 	__end__
@@ -680,10 +885,9 @@ define sketchpad start_practice
 	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="The experiment begins with a short practice session,<br />followed by four experimental blocks.<br /><br /><br />Click the trackball to start the practice session." x=0 y=32 z_index=0
 
 define loop trial_loop
-	set source_file ""
 	set source table
 	set skip 0
-	set repeat 5
+	set repeat 10
 	set order sequential
 	set offset no
 	set item trial_sequence
@@ -692,10 +896,8 @@ define loop trial_loop
 	set continuous no
 	set column_order "problem_type;Retrieval;Transformation"
 	set break_if_on_first yes
-	set break_if "[noprogress]"
+	set break_if "[noprogress] or [num_in_levelfive] == 10"
 	setcycle 0 test 1
-	setcycle 0 Retrieval one
-	setcycle 0 Transformation one
 	run trial_sequence_experiment
 
 define loop trial_loop_experiment
@@ -730,23 +932,62 @@ define loop trial_loop_experiment
 	run trial_sequence
 
 define loop trial_loop_practice
-	set source_file ""
 	set source table
 	set skip 0
-	set repeat 5
+	set repeat 2
 	set order sequential
 	set offset no
 	set item trial_sequence
 	set description "A single block of trials"
-	set cycles 1
+	set cycles 2
 	set continuous no
 	set column_order "problem_type;Retrieval;Transformation"
 	set break_if_on_first yes
-	set break_if "[noprogress]"
-	setcycle 0 test 1
-	setcycle 0 Retrieval one
-	setcycle 0 Transformation one
+	set break_if "[noprogress] or [num_in_levelfive] == 10"
+	setcycle 0 problem_type 1
+	setcycle 0 Retrieval none
+	setcycle 0 Transformation none
+	setcycle 0 Condition Progressive
+	setcycle 1 problem_type 2
+	setcycle 1 Retrieval minimal
+	setcycle 1 Transformation one
+	setcycle 1 Condition Progressive
 	run trial_sequence
+
+define loop trial_practice_loop
+	set source table
+	set skip 0
+	set repeat 2
+	set order random
+	set offset no
+	set item trial_sequence
+	set description "A single block of trials"
+	set cycles 2
+	set continuous no
+	set column_order "problem_type;Retrieval;Transformation"
+	set break_if_on_first yes
+	set break_if False
+	setcycle 0 problem_type 1
+	setcycle 0 Retrieval none
+	setcycle 0 Transformation none
+	setcycle 0 Condition Randomised
+	setcycle 1 problem_type 2
+	setcycle 1 Retrieval minimal
+	setcycle 1 Transformation one
+	setcycle 1 Condition Randomised
+	run trial_practice_sequence
+
+define sequence trial_practice_sequence
+	set flush_keyboard yes
+	set description "A single trial"
+	run create_problem_practice_inline_script always
+	run fixation_practice_sketchpad always
+	run flush_inline_script always
+	run keypad_response_practice_inline_script always
+	run practice_logger always
+	run black__practicesketchpad always
+	run practice_feedback always
+	run practice_fixation_sketchpad always
 
 define sequence trial_sequence
 	set flush_keyboard yes
@@ -754,12 +995,11 @@ define sequence trial_sequence
 	run create_problem always
 	run fixation always
 	run flush_mouse always
-	run problem always
 	run keypad_response always
+	run logger always
 	run black2_1 always
 	run feedback always
 	run fixation_end always
-	run logger always
 
 define sequence trial_sequence_experiment
 	set flush_keyboard yes
@@ -767,10 +1007,9 @@ define sequence trial_sequence_experiment
 	run create_problem always
 	run fixation always
 	run flush_mouse always
-	run problem always
 	run keypad_response always
+	run logger always
 	run black2_1 always
 	run feedback always
 	run fixation_end always
-	run logger always
 
