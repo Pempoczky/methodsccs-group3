@@ -132,7 +132,7 @@ define sketchpad end_of_experiment
 	set start_response_interval no
 	set duration keypress
 	set description "A sketchpad notifying the participant that the experiment is finished"
-	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=28 html=yes show_if=always text="You're done! Thanks for participating!" x=0 y=0 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=28 html=yes show_if=always text="You're done! Thanks for participating!<br /><br />Press any key to end the experiment." x=0 y=0 z_index=0
 
 define sketchpad end_of_practice
 	set start_response_interval no
@@ -391,6 +391,7 @@ define sketchpad start_practice
 	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="The experiment begins with a short practice session.<br />.<br /><br /><br />Click anywhere to start the practice." x=0 y=32 z_index=0
 
 define loop trial_loop_experiment
+	set source_file ""
 	set source table
 	set skip 0
 	set repeat 1
@@ -426,6 +427,7 @@ define loop trial_loop_experiment
 	run trial_sequence
 
 define loop trial_loop_practice
+	set source_file ""
 	set source table
 	set skip 0
 	set repeat 2

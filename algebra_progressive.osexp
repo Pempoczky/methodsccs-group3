@@ -239,6 +239,7 @@ define sequence experiment
 	run end_of_experiment always
 
 define loop experimental_loop
+	set source_file ""
 	set source table
 	set skip 0
 	set repeat 10
@@ -354,18 +355,7 @@ define inline_script keypad_response
 		button, mouse_loc, mouse_time = my_mouse.get_click(buttonlist=[1], timeout=(var.time_keypad + timeout - clock.time()),visible=True)
 		if button == None:
 			response = 'None'
-			#if they're wrong and haven't progressed in a while, break the loop
-			if var.trials_since_levelup == 30:
-				var.noprogress = 1
 			var.fbstate = 'tooslow'
-			if num_correct == -9:
-				#switching to an easier level
-				num_correct = 0
-				trial_n_fortype = 0
-				if problem_type > 1:
-					problem_type = problem_type - 1
-			else:
-				num_correct = num_correct - 1
 	
 		else:
 			mouse_x = mouse_loc[0]
@@ -385,26 +375,8 @@ define inline_script keypad_response
 	if var.response == var.correct_response:
 		var.correct = 1
 		var.fbstate = 'correct'
-		if num_correct == 9:
-			#progressing to a harder level
-			num_correct = 0
-			trials_since_levelup = 0
-			if problem_type < 5:
-				problem_type = problem_type + 1
-		else:
-			num_correct = num_correct + 1
 	elif var.response != 'None':
 		var.fbstate = 'wrong'
-		#if they're wrong and haven't progressed in a while, break the loop
-		if var.trials_since_levelup == 30:
-			var.noprogress = 1
-		if num_correct == -9:
-			#switching to an easier level
-			num_correct = 0
-			if problem_type > 1:
-				problem_type = problem_type - 1
-		else:
-			num_correct = num_correct - 1
 	
 	var.num_correct = num_correct
 	var.timeout = timeout
@@ -502,7 +474,6 @@ define logger logger
 	log correct
 	log Condition
 	log RT_response
-	log timeout
 	log num_correct
 	log trials_since_levelup
 	log trial_index_inlevel
@@ -913,7 +884,33 @@ define sketchpad start_practice
 	set description "A sketchpad containing the instructions for the participant"
 	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="The experiment begins with a short practice session.<br /><br /><br />Click anywhere to start the practice." x=0 y=32 z_index=0
 
+define inline_script switchlevel_inline_script
+	set description "Executes Python code"
+	___run__
+	if var.fbstate == 'tooslow' or var.fbstate == 'wrong':
+		if var.trials_since_levelup == 30:
+			var.noprogress = 1
+		if var.num_correct == -9:
+			#switching to an easier level
+			var.num_correct = 0
+			if var.problem_type > 1:
+				var.problem_type = var.problem_type - 1
+		else:
+			var.num_correct = var.num_correct - 1
+	elif var.fbstate == 'correct':
+		if var.num_correct == 9:
+			#progressing to a harder level
+			var.num_correct = 0
+			var.trials_since_levelup = 0
+			if var.problem_type < 5:
+				var.problem_type = var.problem_type + 1
+		else:
+			var.num_correct = var.num_correct + 1
+	__end__
+	set _prepare ""
+
 define loop trial_loop
+	set source_file ""
 	set source table
 	set skip 0
 	set repeat 10
@@ -985,6 +982,7 @@ define loop trial_loop_practice
 	run trial_sequence
 
 define loop trial_practice_loop
+	set source_file ""
 	set source table
 	set skip 0
 	set repeat 2
@@ -1039,6 +1037,7 @@ define sequence trial_sequence_experiment
 	run flush_mouse always
 	run keypad_response always
 	run logger always
+	run switchlevel_inline_script True
 	run black2_1 always
 	run feedback always
 	run fixation_end always
