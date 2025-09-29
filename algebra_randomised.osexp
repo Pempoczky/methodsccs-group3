@@ -427,7 +427,6 @@ define loop trial_loop_experiment
 	run trial_sequence
 
 define loop trial_loop_practice
-	set source_file ""
 	set source table
 	set skip 0
 	set repeat 2

@@ -916,7 +916,6 @@ define loop trial_loop
 	run trial_sequence_experiment
 
 define loop trial_loop_experiment
-	set source_file ""
 	set source table
 	set skip 0
 	set repeat 20
@@ -928,7 +927,7 @@ define loop trial_loop_experiment
 	set continuous no
 	set column_order "problem_type;Retrieval;Transformation"
 	set break_if_on_first yes
-	set break_if never
+	set break_if False
 	setcycle 0 problem_type 1
 	setcycle 0 Retrieval none
 	setcycle 0 Transformation none
@@ -947,7 +946,6 @@ define loop trial_loop_experiment
 	run trial_sequence
 
 define loop trial_loop_practice
-	set source_file ""
 	set source table
 	set skip 0
 	set repeat 2
