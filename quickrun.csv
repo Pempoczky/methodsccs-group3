@@ -1,0 +1,6 @@
+"Condition","RT_response","Retrieval","Transformation","block","correct","correct_response","cur_problem","datetime","experiment_file","practice","problem_type","response","subject_nr","trial"
+"Randomised","1010","minimal","one","0","0","3","x + 6 = 9","Wed Oct  8 13:46:38 2025","algebra_eyetracking.osexp","yes","2","5","999","1"
+"Randomised","824","none","none","0","0","5","x = 5","Wed Oct  8 13:46:38 2025","algebra_eyetracking.osexp","yes","1","6","999","2"
+"Randomised","1052","minimal","one","0","0","6","x + 4 = 10","Wed Oct  8 13:46:38 2025","algebra_eyetracking.osexp","yes","2","8","999","3"
+"Randomised","1200","none","none","0","0","2","x = 2","Wed Oct  8 13:46:38 2025","algebra_eyetracking.osexp","yes","1","5","999","4"
+"Randomised","5001","two","two","1","0","9","8x + 7 = 79","Wed Oct  8 13:46:38 2025","algebra_eyetracking.osexp","no","5","None","999","5"
