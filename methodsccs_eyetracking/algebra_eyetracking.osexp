@@ -1,0 +1,494 @@
+---
+API: 3
+OpenSesame: 4.1.0
+Platform: nt
+---
+set width 1280
+set uniform_coordinates yes
+set title Algebra
+set subject_parity even
+set subject_nr 0
+set start experiment
+set sound_sample_size -16
+set sound_freq 48000
+set sound_channels 2
+set sound_buf_size 1024
+set sampler_backend legacy
+set round_decimals 2
+set mouse_backend xpyriment
+set keyboard_backend legacy
+set height 1024
+set fullscreen no
+set form_clicks no
+set foreground white
+set font_underline no
+set font_size 24
+set font_italic no
+set font_family sans
+set font_bold no
+set experiment_path "C:\\Users\\F120734\\Documents\\MethodsCCS_Group3"
+set disable_garbage_collection yes
+set description "Algebra for fMRI & EEG"
+set coordinates uniform
+set compensation 0
+set color_backend legacy
+set clock_backend legacy
+set canvas_backend xpyriment
+set bidi yes
+set background black
+
+define sketchpad black
+	set duration 200
+	set description "Displays stimuli"
+
+define sketchpad black2
+	set duration 1
+	set description "Displays stimuli"
+
+define sketchpad black2_1
+	set duration 1
+	set description "Displays stimuli"
+
+define sequence block_sequence
+	set flush_keyboard yes
+	set description "A sequence containing a single block of trials followed by feedback to the participant"
+	run block_stuff always
+	run trial_loop_experiment always
+
+define sequence block_sequence_practice
+	set flush_keyboard yes
+	set description "A sequence containing a single block of trials followed by feedback to the participant"
+	run trial_loop_practice always
+
+define inline_script block_stuff
+	set description "Executes Python code"
+	set _run ""
+	___prepare__
+	var.block = var.block + 1
+	__end__
+
+define inline_script create_problem
+	set description "Executes Python code"
+	set _run "my_mouse.flush()"
+	___prepare__
+	var.trial = var.trial + 1
+	
+	# Create a problem here, depending on the type
+	
+	# type 1: x = 8
+	# type 2: x - 2 = 4 / x + 4 = 9
+	# type 3: x = 32/8
+	# type 4: 8x = 32
+	# type 5: 8x - 4 = 28 / 8x + 4 = 20
+	
+	var.correct = 0
+	var.correct_response = random.randint(1,9)
+	
+	if var.problem_type == 1:
+		var.cur_problem = 'x = ' + str(var.correct_response)
+	elif var.problem_type == 2:
+		if random.randint(0,1) == 0:
+			righthand = random.randint(var.correct_response + 1,10)
+			var.cur_problem = 'x + ' + str(righthand - var.correct_response) + ' = ' + str(righthand)
+		else:
+			var.correct_response = random.randint(2,9) #x can't be 1
+			lefthand = random.randint(1,var.correct_response-1)
+			var.cur_problem = 'x - ' + str(lefthand) + ' = ' + str(var.correct_response - lefthand)
+	elif var.problem_type == 3:
+		divider = random.randint(2,9)
+		var.cur_problem = 'x = ' + str(var.correct_response * divider) + ' / ' + str(divider)
+	elif var.problem_type == 4:
+		divider = random.randint(2,9)
+		var.cur_problem = str(divider) + 'x = ' + str(var.correct_response * divider)
+	elif var.problem_type == 5:
+		divider = random.randint(2,9)
+		if random.randint(0,1) == 0:
+			lefthand = random.randint(1,9)	
+			var.cur_problem = str(divider) + 'x + ' + str(lefthand) + ' = ' + str(var.correct_response * divider + lefthand)
+		else:
+			var.correct_response = random.randint(2,9) #x can't be 1
+			lefthand = random.randint(1,var.correct_response-1)
+			var.cur_problem = str(divider) + 'x - ' + str(lefthand) + ' = ' + str(var.correct_response * divider - lefthand)
+	
+	var.correct_response = str(var.correct_response)
+	
+	# Determine jitter fixation length: for fMRI 2 seconds, for EEG + behav uniform between 400-600 ms. 
+	var.fix_dur = random.randint(400,600) - 5 #-5 to correspond to refresh rate
+	__end__
+
+define sketchpad end_of_block
+	set duration keypress
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="This is the end of block [block] of 4. <br />Please notify the experimenter. <br />You can take a short break.<br /><br />" x=0 y=32 z_index=0
+
+define sketchpad end_of_block_2
+	set duration mouseclick
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="When you're ready, please click to continue with the next block." x=0 y=0 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=18 html=yes show_if=always text="" x=-64 y=96 z_index=0
+
+define sketchpad end_of_experiment
+	set start_response_interval no
+	set duration keypress
+	set description "A sketchpad notifying the participant that the experiment is finished"
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=28 html=yes show_if=always text="You're done! Thanks for participating!<br /><br />Press any key to end the experiment." x=0 y=0 z_index=0
+
+define sketchpad end_of_practice
+	set start_response_interval no
+	set duration keypress
+	set description "A sketchpad notifying the participant that the practice phase is finished"
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=28 html=yes show_if=always text="That was the end of the practice.<br /> If you have any questions, notify the experimenter. <br />If not, press any key to start the experiment." x=0 y=0 z_index=0
+
+define sequence experiment
+	set flush_keyboard yes
+	set description "The main sequence of the experiment"
+	run initialize_pygaze_init True
+	run preparation always
+	run instructions always
+	run start_practice always
+	run black always
+	run practice_loop always
+	run end_of_practice always
+	run black always
+	run experimental_loop always
+	run stop_recording_inline_script True
+	run end_of_experiment always
+
+define loop experimental_loop
+	set source table
+	set skip 0
+	set repeat 10
+	set order sequential
+	set offset no
+	set item block_sequence
+	set description "A loop containing one or more experimental blocks"
+	set cycles 1
+	set continuous no
+	set column_order practice
+	set break_if_on_first yes
+	set break_if False
+	setcycle 0 practice no
+	run block_sequence
+
+define feedback feedback
+	set reset_variables yes
+	set duration 995
+	set description "Provides feedback to the participant"
+	draw textline center=1 color=red font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if="[fbstate] = 'wrong'" text=Wrong x=0 y=0 z_index=0
+	draw textline center=1 color=green font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if="[fbstate] = 'correct'" text="Correct!" x=0 y=0 z_index=0
+	draw textline center=1 color=red font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if="[fbstate] = 'toolate'" text="Too late!" x=0 y=0 z_index=0
+	draw textline center=1 color=red font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if="[fbstate] = 'tooslow'" text="Too slow!" x=0 y=0 z_index=0
+
+define sketchpad fixation
+	set start_response_interval no
+	set duration "[fix_dur]"
+	set description "Displays stimuli"
+	draw fixdot color=white show_if=always style=default x=0 y=0 z_index=0
+
+define sketchpad fixation_end
+	set duration 1200
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=38 html=yes show_if=always text="+" x=0 y=0 z_index=0
+
+define inline_script flush_mouse
+	set description "Executes Python code"
+	___run__
+	my_mouse.flush()
+	__end__
+	set _prepare ""
+
+define pygaze_init initialize_pygaze_init
+	set tracker_type EyeLink
+	set tobiiglasses_udpport 49152
+	set tobiiglasses_address "192.168.71.50"
+	set smi_send_port 4444
+	set smi_recv_port 5555
+	set smi_ip "127.0.0.1"
+	set sacc_vel_thr 35
+	set sacc_acc_thr 9500
+	set eyelink_pupil_size_mode diameter
+	set eyelink_force_drift_correct yes
+	set description "Initialize and calibrate eye tracker"
+	set calibrate yes
+	set calbeep yes
+	set alea_api_key "Contact Alea for an API key"
+	set alea_animated_calibration no
+	set _logfile automatic
+
+define sketchpad instructions
+	set duration mouseclick
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="In this experiment you are asked to solve algebra questions such as:<br /><br />8x = 4<br /><br />In each trial, you will see a problem appear, with a circular keypad below it in the center. <br />As soon as you know the answer, you can select your response by clicking it on the keypad.<br /><br />If you cannot answer in 5 seconds, your answer will be counted as incorrect.<br /><br />After each response, you'll receive feedback, and then a fixation cross will appear, and the experiment will wait until you click to move on to the next problem." x=0 y=32 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=36 html=yes show_if=always text="Welcome!" x=0 y=-224 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="Click anywhere to continue." x=0 y=300 z_index=0
+
+define inline_script keypad_response
+	set description "Executes Python code"
+	___run__
+	
+	##display text
+	var.problem_display = keypad_canvas.text(var.cur_problem, x=0, y=-120, font_size=24, font_family='mono')
+	
+	##display keypad
+	#keys_xy = xy_grid(3, 48)
+	keys_xy = xy_circle(9,70,-85)
+	keys_val = [1,2,3,4,5,6,7,8,9]
+	button_size = 42
+	displacement = button_size/2
+	min_x = min(keys_xy)[0] - displacement
+	max_x = max(keys_xy)[0] + displacement
+	min_y = min(keys_xy)[1] - displacement
+	max_y = max(keys_xy)[1] + displacement
+	
+	i = 0
+	for x, y in keys_xy:
+		#keypad_canvas.rect(x-displacement, y-displacement, button_size, button_size, fill=True, color='lightslategrey') #fill grey
+		#keypad_canvas.rect(x-displacement, y-displacement, button_size, button_size, color='darkgrey') #white border
+		keypad_canvas.circle(x,y,button_size/2,fill=True,color='lightslategrey')
+		keypad_canvas.circle(x,y,button_size/2,color='darkgrey')
+	
+		#digit
+		keypad_canvas.text(keys_val[i],x=x,y=y)
+		i=i+1
+	
+	## display canvas
+	var.time_keypad = keypad_canvas.show()
+	eyetracker.log("Start of trial")
+	eyetracker.log_var("difficulty", var.problem_type)
+	eyetracker.log_var("problem", var.cur_problem)
+	eyetracker.log_var("trial", var.trial)
+	eyetracker.log_var("practice", var.practice)
+	eyetracker.log_var("block", var.block)
+	eyetracker.log_var("subject", var.subject_nr)
+	
+	## display mouse
+	my_mouse.flush()
+	my_mouse.set_pos(pos=(0,0))
+	#my_mouse.show_cursor(show=True)
+	
+	## capture response
+	response = 0
+	timeout = 5000 #timeout is 5 seconds
+	
+	## process response
+	while response == 0:
+		button, mouse_loc, mouse_time = my_mouse.get_click(buttonlist=[1], timeout=(var.time_keypad + timeout - clock.time()),visible=True)
+		if button == None:
+			response = 'None'
+			var.fbstate = 'tooslow'
+			eyetracker.log("Timeout")
+	
+		else:
+			mouse_x = mouse_loc[0]
+			mouse_y = mouse_loc[1]
+			#if mouse_x > min_x and mouse_x < max_x and mouse_y > min_y and mouse_y < max_y:
+			cnt = 0
+			for x, y in keys_xy:
+				if mouse_x > (x-displacement) and mouse_x < (x+displacement) and mouse_y > (y-displacement) and mouse_y < (y+displacement):
+					response = keys_val[cnt]
+					eyetracker.log_var("Response given", response)
+					break
+				cnt = cnt + 1
+	
+	#log RT and response
+	var.RT_response = mouse_time - var.time_keypad
+	var.response = response
+	#determine correctness
+	if var.response == var.correct_response:
+		var.correct = 1
+		var.fbstate = 'correct'
+	
+	elif var.response != 'None':
+		var.fbstate = 'wrong'
+	eyetracker.log_var("correct", correct)
+	eyetracker.log_var("fbstate", fbstate)
+	eyetracker.log("End of trial")
+	keypad_canvas.clear()
+	__end__
+	set _prepare ""
+
+define logger logger
+	set description "Logs experimental data"
+	set auto_log no
+	log experiment_file
+	log datetime
+	log subject_nr
+	log practice
+	log block
+	log trial
+	log problem_type
+	log Retrieval
+	log Transformation
+	log Condition
+	log cur_problem
+	log correct_response
+	log response
+	log correct
+	log RT_response
+
+define pygaze_log logger_pygaze_log
+	set throttle 2
+	set msg ""
+	set description "Writes information to the eye-tracker logfile"
+	set auto_log no
+
+define logger new_logger
+	set description "Logs experimental data"
+	set auto_log yes
+	log time_fixation_end
+
+define loop practice_loop
+	set source_file ""
+	set source table
+	set skip 0
+	set repeat 1
+	set order random
+	set offset no
+	set item block_sequence_practice
+	set description "A loop containing one or more practice blocks"
+	set cycles 1
+	set continuous no
+	set column_order practice
+	set break_if_on_first yes
+	set break_if never
+	setcycle 0 practice yes
+	run block_sequence_practice
+
+define inline_script preparation
+	set description "Executes Python code"
+	___run__
+	my_mouse.flush()
+	eyetracker.start_recording()
+	
+	#keypad_canvas.show()
+	#print 'hallo'
+	__end__
+	___prepare__
+	
+	import random
+	var.block = 0
+	var.trial = 0
+	
+	#prepare mouse
+	my_mouse = mouse()
+	
+	#prepare keypad canvas
+	keypad_canvas = canvas()
+	keypad_canvas.penwidth = 2
+	keypad_canvas.font_size = 24
+	
+	
+	# draw keys
+	#keys_xy = xy_grid(3, 48)
+	keys_xy = xy_circle(9,70,-85) 
+	keys_val = [1,2,3,4,5,6,7,8,9]
+	button_size = 42
+	displacement = button_size/2
+	min_x = min(keys_xy)[0] - displacement
+	max_x = max(keys_xy)[0] + displacement
+	min_y = min(keys_xy)[1] - displacement
+	max_y = max(keys_xy)[1] + displacement
+	
+	i = 0
+	for x, y in keys_xy:
+		#keypad_canvas.rect(x-displacement, y-displacement, button_size, button_size, fill=True, color='lightslategrey') #fill grey
+		#keypad_canvas.rect(x-displacement, y-displacement, button_size, button_size, color='darkgrey') #white border
+		keypad_canvas.circle(x,y,button_size/2,fill=True,color='lightslategrey')
+		keypad_canvas.circle(x,y,button_size/2,color='darkgrey')
+		
+		#digit
+		keypad_canvas.text(keys_val[i],x=x,y=y)
+		i=i+1
+	__end__
+
+define sketchpad problem
+	set timeout 9995
+	set duration mouseclick
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="[cur_problem]" x=0 y=0 z_index=0
+
+define sketchpad start_of_exp
+	set duration mouseclick
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="The real experiment consists of 4 blocks.<br /><br />Please click to start the first block." x=0 y=0 z_index=0
+
+define sketchpad start_practice
+	set start_response_interval no
+	set duration mouseclick
+	set description "A sketchpad containing the instructions for the participant"
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=28 html=yes show_if=always text="The experiment begins with a short practice session.<br /><br />Click anywhere to start the practice." x=0 y=32 z_index=0
+
+define inline_script stop_recording_inline_script
+	set description "Executes Python code"
+	___run__
+	eyetracker.stop_recording()
+	eyetracker.log("Stopped recording")
+	__end__
+	set _prepare ""
+
+define loop trial_loop_experiment
+	set source table
+	set skip 0
+	set repeat 2
+	set order random
+	set offset no
+	set item trial_sequence
+	set description "A single block of trials"
+	set cycles 5
+	set continuous no
+	set column_order "problem_type;Retrieval;Transformation"
+	set break_if_on_first yes
+	set break_if False
+	setcycle 0 problem_type 1
+	setcycle 0 Retrieval none
+	setcycle 0 Transformation none
+	setcycle 1 problem_type 2
+	setcycle 1 Retrieval minimal
+	setcycle 1 Transformation one
+	setcycle 2 problem_type 3
+	setcycle 2 Retrieval one
+	setcycle 2 Transformation none
+	setcycle 3 problem_type 4
+	setcycle 3 Retrieval one
+	setcycle 3 Transformation one
+	setcycle 4 problem_type 5
+	setcycle 4 Retrieval two
+	setcycle 4 Transformation two
+	run trial_sequence
+
+define loop trial_loop_practice
+	set source_file ""
+	set source table
+	set skip 0
+	set repeat 2
+	set order random
+	set offset no
+	set item trial_sequence
+	set description "A single block of trials"
+	set cycles 2
+	set continuous no
+	set column_order "problem_type;Retrieval;Transformation"
+	set break_if_on_first yes
+	set break_if False
+	setcycle 0 problem_type 1
+	setcycle 0 Retrieval none
+	setcycle 0 Transformation none
+	setcycle 0 Condition Randomised
+	setcycle 1 problem_type 2
+	setcycle 1 Retrieval minimal
+	setcycle 1 Transformation one
+	setcycle 1 Condition Randomised
+	run trial_sequence
+
+define sequence trial_sequence
+	set flush_keyboard yes
+	set description "A single trial"
+	run create_problem always
+	run flush_mouse always
+	run keypad_response always
+	run logger always
+	run logger_pygaze_log True
+	run black2_1 always
+	run feedback always
+	run fixation_end always
+

@@ -50,6 +50,5 @@ compareML(m2, m5)
 #Indeed, the fREML score is the same but model m5 uses less edf, so we are sticking with that
 #There is nothing else worth removing, so our final model is model m5
 summary(m5)
-
 #Significance testing
 
