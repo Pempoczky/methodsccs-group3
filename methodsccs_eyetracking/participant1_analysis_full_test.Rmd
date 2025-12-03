@@ -1,0 +1,243 @@
+---
+title: "analysis_participant1"
+author: "Jules Roboz"
+date: "2025-11-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("C:/Users/Gebruiker/Documents/Masters CCS/Year1/Block12/Methods in CCS/algebra/methodsccs-group3/methodsccs-group3/methodsccs_eyetracking/")
+
+#load packages
+require(PupilPre)
+require(eyelinker)
+require(plyr)
+require(dplyr)
+```
+
+
+```{r}
+source("./asc_to_pupilpre.R")
+```
+```{r}
+path_to_file <- "sub1_modified.asc"
+raw_dat <- read.asc(path_to_file)
+```
+```{r}
+#head(raw_dat$raw)
+head(raw_dat$msg, 20)
+#raw_dat$fix
+```
+```{r}
+label <- "sub1" # Some subject identifier
+recorded_eye <- "Left"
+trial_start_msg <- "var StartTrial [0-9]+" # Trial begin pattern
+id_pattern <- "StartTrial " # Trial pattern used for trial index
+trial_end_msg <- "EndTrial [0-9]+" # Trial end pattern
+```
+```{r}
+ppl_pre_dat <- asc_to_pupilpre(path_to_file,
+                               label,
+                               recorded_eye,
+                               trial_start_msg,
+                               id_pattern,
+                               trial_end_msg)
+head(ppl_pre_dat$pplpreData)
+#head(ppl_pre_dat$rawMessages)
+
+
+```
+```{r}
+# Extract StartTrial timestamps from rawMessages, join to pplpreData, compute Time
+
+library(dplyr)
+
+# rawMessages in your data uses columns: time, text (we saw these earlier)
+
+msg_df <- ppl_pre_dat$rawMessages
+
+# defensive check
+
+if(!all(c("time","text") %in% names(msg_df))) {
+stop("rawMessages does not contain expected columns 'time' and 'text'.")
+}
+
+# Extract StartTrial lines and parse TRIAL_INDEX
+
+start_pattern <- "var StartTrial [0-9]+"
+start_msgs <- msg_df[grep(start_pattern, msg_df$text), , drop = FALSE]
+
+if(nrow(start_msgs) == 0) stop("No StartTrial messages found in rawMessages!")
+
+start_msgs$TRIAL_INDEX <- as.numeric(sub(".*StartTrial ([0-9]+).*", "\1", start_msgs$text))
+
+# Build start_times (TRIAL_INDEX, start_ts)
+
+start_times <- start_msgs %>%
+select(TRIAL_INDEX, start_ts = time) %>%
+distinct(TRIAL_INDEX, .keep_all = TRUE)
+
+# Attach start times to the full pplpreData
+
+ppd <- ppl_pre_dat$pplpreData
+
+# Ensure TRIAL_INDEX numeric types match
+
+ppd$TRIAL_INDEX <- as.numeric(ppd$TRIAL_INDEX)
+start_times$TRIAL_INDEX <- as.numeric(start_times$TRIAL_INDEX)
+
+# Left join so each sample gets its trial's start timestamp (NA for non-trial rows)
+
+ppd <- left_join(ppd, start_times, by = "TRIAL_INDEX")
+
+# If asc_to_pupilpre produced an in_trial_shifted column (recommended), ensure it exists
+
+if(!("in_trial_shifted" %in% names(ppd))) {
+warning("in_trial_shifted not present in pplpreData. If you want pre-trial samples, ensure asc_to_pupilpre yields in_trial_shifted.")
+
+# as a fallback, create it identical to in_trial (not ideal)
+
+ppd$in_trial_shifted <- ppd$in_trial
+}
+
+# Compute Time relative to StartTrial: Time = TIMESTAMP - start_ts
+
+# Note: TIMESTAMP is the sample timestamp column created in asc_to_pupilpre
+
+if(!("TIMESTAMP" %in% names(ppd))) stop("TIMESTAMP column not found in pplpreData.")
+
+ppd <- ppd %>% mutate(Time = TIMESTAMP - start_ts)
+
+# Quick diagnostics
+
+cat("Global Time range (min to max):", min(ppd$Time, na.rm = TRUE), "to", max(ppd$Time, na.rm = TRUE), "\n")
+cat("Number of rows with Time < 0:", sum(ppd$Time < 0, na.rm = TRUE), "\n")
+cat("Example start_times (first 10):\n")
+print(head(start_times, 10))
+
+# assign dat_time as the full dataset with Time for downstream steps
+
+dat_time <- ppd
+
+```
+```{r}
+# check_msg_time equivalent diagnostic if you want to verify alignments:
+
+# for each trial, show how many samples exist in [-400,0)
+
+dat_time %>%
+group_by(TRIAL_INDEX) %>%
+summarise(n_pre400 = sum(Time >= -400 & Time < 0, na.rm = TRUE),
+min_time = min(Time, na.rm = TRUE),
+.groups = "drop") %>%
+summary()
+
+```
+
+
+```{r}
+dat2 <- ppl_select_recorded_eye(data = dat_time, Recording = "LorR", WhenLandR = "Left")
+```
+
+```{r}
+with(dat2,plot(Gaze_X,Gaze_Y))
+```
+```{r}
+dat3 <- recode_off_screen(data = dat2, ScreenSize = c(1280, 1024))
+```
+```{r}
+with(dat3,plot(Gaze_X,Gaze_Y, xlim = c(0, 1280), ylim = c(0, 1024)))
+```
+```{r}
+#blink_summary(dat3, Summary = "Event")
+NA_summary(dat3, Summary = "Event", PupilColumn="Pupil")
+```
+```{r}
+dat4 <- clean_blink(dat3, BlinkPadding = c(170, 170), Delta = 5,
+                    MaxValueRun = 5, NAsAroundRun = c(2,2),
+                    LogFile = "BlinkCleanupLog.rds")
+```
+
+
+```{r}
+# Now filter out practice trials and popup trials (do this AFTER Time exists and after cleaning)
+
+# This will remove whole trials (including their pretrial samples) for those trial indices.
+
+dat4 <- subset(dat4, !(TRIAL_INDEX %in% c(1, 2, 3, 4, 14, 15, 16, 17)))
+
+bad_events <- c("sub1.1", "sub1.2", "sub1.3", "sub1.4",
+"sub1.14", "sub1.15", "sub1.16", "sub1.17")
+
+dat4 <- dat4[! as.character(dat4$Event) %in% bad_events, ]
+dat4$Event <- droplevels(dat4$Event)
+
+
+```
+
+```{r}
+# Quick check: do we still have negative times for trials retained?
+
+dat4 %>% group_by(TRIAL_INDEX) %>%
+summarise(min_time = min(Time, na.rm=TRUE),
+n_pre400 = sum(Time >= -400 & Time < 0, na.rm=TRUE),
+.groups="drop") %>%
+summary()
+
+```
+
+```{r}
+#table(dat4$TRIAL_INDEX)
+plot_compare_app(dat4)
+```
+```{r}
+dat5 <- interpolate_NAs(dat4, Method = "linear", XandY = T, MinData = 2)
+plot_compare_app(dat5)
+```
+
+```{r}
+dat6 <- baseline(dat5, BaselineWindow = c(-400, 0), BaselineType = "Subtraction")
+
+```
+
+```{r}
+saveRDS(dat6, file = "FinalDat.rds", compress = "xz")
+```
+```{r}
+ppl_plot_avg(data = dat6, xlim = c(-400, 5000), Column = "Pupil",
+             Condition1 = NULL, Condition2 = NULL, Cond1Labels = NA, 
+             Cond2Labels = NA, ErrorBar = FALSE, ErrorBand=TRUE, PupilPreTheme = TRUE) 
+```
+```{r}
+dat6$condition <- 0 #ini at 0
+cond <- 'none'
+for(i in 1:length(dat6$Subject)){ #for each sample in our dataset
+    tmp <- dat6$SAMPLE_MESSAGE[i] #check whether there's a message
+    if(!is.na(tmp)){ #if there is
+        tmp <- regexpr( 'difficulty [0-9]+', dat6$SAMPLE_MESSAGE[i]) #check whether 'difficulty ##' is in the message
+        if(!is.na(tmp) && tmp != -1){ #if so
+            cond <- regmatches(dat6$SAMPLE_MESSAGE[i],tmp)        
+            cond <- as.numeric(regmatches(cond,regexpr("[0-9]+",cond))) #set 'cond' to the type 
+        }
+    }
+    dat6$condition[i] <- cond #and add this to the new condition variable that we added above
+}
+dat6$difficulty <- as.factor(dat6$condition)
+
+#now we can plot:
+ppl_plot_avg(data = dat6, xlim = c(-400, 5000), Column = "Pupil", 
+             Condition1 = "difficulty", Condition2 = NULL, 
+             ErrorBar = FALSE, ErrorBand=TRUE, PupilPreTheme = FALSE)
+```
+```{r}
+#check to make sure difficulty is calculated correctly, it is
+#table(dat6$difficulty, dat6$TRIAL_INDEX)
+
+
+
+```
+

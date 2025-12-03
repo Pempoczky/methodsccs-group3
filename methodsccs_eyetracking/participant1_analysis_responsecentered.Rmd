@@ -1,0 +1,148 @@
+---
+title: "analysis_participant1_responsecentered"
+author: "Jules Roboz"
+date: "2025-11-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("C:/Users/Gebruiker/Documents/Masters CCS/Year1/Block12/Methods in CCS/algebra/methodsccs-group3/methodsccs-group3/methodsccs_eyetracking/")
+
+#load packages
+require(PupilPre)
+require(eyelinker)
+require(plyr)
+require(dplyr)
+```
+
+
+```{r}
+source("./asc_to_pupilpre.R")
+```
+```{r}
+path_to_file <- "sub1_modified.asc"
+raw_dat <- read.asc(path_to_file)
+```
+```{r}
+#head(raw_dat$raw)
+head(raw_dat$msg, 20)
+#raw_dat$fix
+```
+```{r}
+label <- "sub1" # Some subject identifier
+recorded_eye <- "Left"
+trial_start_msg <- "var StartTrial [0-9]+" # Trial begin pattern
+id_pattern <- "StartTrial " # Trial pattern used for trial index
+trial_end_msg <- "EndTrial [0-9]+" # Trial end pattern
+```
+```{r}
+ppl_pre_dat <- asc_to_pupilpre(path_to_file,
+                               label,
+                               recorded_eye,
+                               trial_start_msg,
+                               id_pattern,
+                               trial_end_msg)
+```
+
+```{r}
+head(ppl_pre_dat$pplpreData)
+#head(ppl_pre_dat$rawMessages)
+```
+```{r}
+dat <- ppl_pre_dat$pplpreData[ppl_pre_dat$pplpreData$in_trial,]
+str(dat)
+```
+```{r}
+dat_aligned <- align_msg(dat,Msg="Response given")
+str(dat_aligned)
+dat_time <- create_time_series(dat_aligned, Adjust = 0)
+```
+```{r}
+check_msg_time(dat_time, Msg = "StartTrial", ReturnData=T)
+#check_msg_time(dat_time, Msg = "Response given [0-9]", ReturnData = T)
+```
+```{r}
+dat2 <- ppl_select_recorded_eye(data = dat_time, Recording = "LorR", WhenLandR = "Left")
+```
+
+```{r}
+with(dat2,plot(Gaze_X,Gaze_Y))
+```
+```{r}
+dat3 <- recode_off_screen(data = dat2, ScreenSize = c(1280, 1024))
+```
+```{r}
+with(dat3,plot(Gaze_X,Gaze_Y, xlim = c(0, 1280), ylim = c(0, 1024)))
+```
+```{r}
+blink_summary(dat3, Summary = "Event")
+NA_summary(dat3, Summary = "Event", PupilColumn="Pupil")
+```
+```{r}
+dat4 <- clean_blink(dat3, BlinkPadding = c(170, 170), Delta = 5,
+                    MaxValueRun = 5, NAsAroundRun = c(2,2),
+                    LogFile = "BlinkCleanupLog.rds")
+```
+
+
+```{r}
+#remove data points where the popup appeared  (14, 15, 16, 17) and practice trials (1, 2, 3, 4)
+dat4 <- subset(dat4, !(TRIAL_INDEX %in% c(1, 2, 3, 4, 14, 15, 16, 17)))
+bad_events <- c("sub1.1", "sub1.2", "sub1.3", "sub1.4", "sub1.14", "sub1.15", "sub1.16", "sub1.17")
+
+dat4 <- dat4[! as.character(dat4$Event) %in% bad_events, ]
+dat4$Event <- droplevels(dat4$Event)
+
+```
+```{r}
+#table(dat4$TRIAL_INDEX)
+plot_compare_app(dat4)
+```
+```{r}
+dat5 <- interpolate_NAs(dat4, Method = "linear", XandY = T, MinData = 2)
+plot_compare_app(dat5)
+```
+
+```{r}
+dat6_responsecentered <- baseline(dat5, BaselineWindow = c(-100, 0), BaselineType = "Subtraction")
+```
+
+```{r}
+saveRDS(dat6_responsecentered, file = "FinalDat.rds", compress = "xz")
+```
+```{r}
+ppl_plot_avg(data = dat6_responsecentered, xlim = c(-5000, 1000), Column = "Pupil",
+             Condition1 = NULL, Condition2 = NULL, Cond1Labels = NA, 
+             Cond2Labels = NA, ErrorBar = FALSE, ErrorBand=TRUE, PupilPreTheme = FALSE) 
+```
+```{r}
+dat6_responsecentered$condition <- 0 #ini at 0
+cond <- 'none'
+for(i in 1:length(dat6_responsecentered$Subject)){ #for each sample in our dataset
+    tmp <- dat6_responsecentered$SAMPLE_MESSAGE[i] #check whether there's a message
+    if(!is.na(tmp)){ #if there is
+        tmp <- regexpr( 'difficulty [0-9]+', dat6_responsecentered$SAMPLE_MESSAGE[i]) #check whether 'difficulty ##' is in the message
+        if(!is.na(tmp) && tmp != -1){ #if so
+            cond <- regmatches(dat6_responsecentered$SAMPLE_MESSAGE[i],tmp)        
+            cond <- as.numeric(regmatches(cond,regexpr("[0-9]+",cond))) #set 'cond' to the type 
+        }
+    }
+    dat6_responsecentered$condition[i] <- cond #and add this to the new condition variable that we added above
+}
+dat6_responsecentered$difficulty <- as.factor(dat6_responsecentered$condition)
+
+#now we can plot:
+ppl_plot_avg(data = dat6_responsecentered, xlim = c(-5000, 1000), Column = "Pupil", 
+             Condition1 = "difficulty", Condition2 = NULL, 
+             ErrorBar = FALSE, ErrorBand=TRUE, PupilPreTheme = FALSE)
+```
+```{r}
+#check to make sure difficulty is calculated correctly, it is
+#table(dat6$difficulty, dat6$TRIAL_INDEX)
+
+```
+

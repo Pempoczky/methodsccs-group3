@@ -1,0 +1,450 @@
+---
+title: "Eyetracking Analysis"
+author: "Methods in CCS 25/26"
+date: 'Table of Contents:'
+output:
+  html_document:
+    theme: united
+    highlight: pygments
+    toc: yes
+  html_notebook:
+    toc: yes
+  pdf_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+  markdown:
+    wrap: 72
+runtime: shiny
+---
+
+```{=html}
+<style>
+h1 {
+  padding: 25px 0px;
+  color: #dd4814;
+}
+h2 {
+  padding: 25px 0px;
+}
+hr {
+  border-color: #dd481433;
+  border-style: solid;
+  border-width: 4pt 0pt 0pt 0pt;
+  margin-top: 20pt;
+  margin-bottom: 20pt;
+}
+.sidestep {
+  border: #CCCCCC dotted 3pt;
+  border-radius:10pt;
+  padding:10pt 10pt;
+  margin: 10pt 100pt;
+}
+accent{
+    font-weight: bold;
+    font-style: italic;
+    text-decoration: underline;
+    text-decoration-style:double;
+}
+
+</style>
+```
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 5, fig.height = 4)
+#NOTE JPB: to knit (while ignoring shiny), just call rmarkdown::render("how_to_analyze_eyetracking_data.rmd")
+```
+
+<hr/>
+
+In this document I will demonstrate how to do the basic eye-tracking
+analysis steps, focusing on pupil dilation.
+
+To analyze the data from the eye-tracker, we are going to use the
+PupilPre package
+(<https://cran.r-project.org/web/packages/PupilPre/index.html>). In this
+notebook I will demonstrate how to:
+
+-   read in the data
+-   remove and interpolate blinks
+-   baseline the data
+-   make the first plots
+
+PupilPre has more functions, see for example:
+
+-   [Basic Preprocessing of Pupil Size
+    Data](https://rdrr.io/cran/PupilPre/f/vignettes/PupilPre_Basic_Preprocessing.Rmd)
+-   [Blink and Artifact Cleanup
+    (Detailed)](https://rdrr.io/cran/PupilPre/f/vignettes/PupilPre_Cleanup.Rmd)
+-   [Interpolation and Filtering of Pupil Size
+    Data](https://rdrr.io/cran/PupilPre/f/vignettes/PupilPre_Interpolation_and_Filtering.Rmd)
+-   [Aligning Data to a Specific Sample
+    Message](https://rdrr.io/cran/PupilPre/f/vignettes/PupilPre_Message_Alignment.Rmd)
+-   [Plotting Pupil Size Data Processed with
+    PupilPre](https://rdrr.io/cran/PupilPre/f/vignettes/PupilPre_Plotting.Rmd)
+
+### Preparation
+
+First, you need to install the necessary packages:
+
+```{r, eval=FALSE}
+install.packages("https://cran.r-project.org/src/contrib/Archive/PupilPre/PupilPre_0.6.2.tar.gz", repos = NULL) #pupilpre no longer active on CRAN, need to install from archive
+install.packages("eyelinker")
+install.packages("dplyr")
+install.packages("plyr")
+```
+
+Next, we set the working directory and load the packages:
+
+```{r, eval=TRUE, results='hide', warning=FALSE,message=FALSE}
+#set directory
+setwd("C:/Users/Gebruiker/Documents/Masters CCS/Year1/Block12/Methods in CCS/algebra/methodsccs-group3/methodsccs-group3/methodsccs_eyetracking/")
+
+#load packages
+require(PupilPre)
+require(eyelinker)
+require(plyr)
+require(dplyr)
+```
+
+and load the custom `asc_to_pupilpre.R` function that Joshua Krause
+provided. This function reads in an .asc file and converts it to the
+PupilPre format.
+
+```{r, eval=TRUE}
+source("asc_to_pupilpre.R")
+```
+
+<hr/>
+
+# Part I: Reading in data
+
+### Step 1. Quick inspection with eyelinker.
+
+First load in the raw data using eyelinker so that it can be inspected.
+The raw_dat object contains the raw data as well as information about
+whether the eye-tracker detected saccades, blinks, or received messages.
+For details the eyelinker vignette can be consulted:
+<https://cran.r-project.org/web/packages/eyelinker/vignettes/basics.html>.
+
+```{r, eval=TRUE}
+path_to_file <- "sub_1.asc"
+raw_dat <- read.asc(path_to_file)
+```
+
+Inspect parts of the raw data:
+
+```{r, eval=TRUE}
+head(raw_dat$raw)
+```
+
+Inspect the messages received by the tracker:
+
+```{r, eval=TRUE}
+head(raw_dat$msg, 20)
+```
+
+We can infer that the tracker regularly received a "var StartTrial"
+message, eventually followed by a "var EndTrial" message.
+
+Eyelinker also parses out fixations, saccades and blinks, e.g.:
+
+```{r, eval=TRUE}
+raw_dat$fix
+```
+
+If you only want to use fixations, this is the data to use. Note that
+you still need to add trial and condition information. Check out all the
+way at the bottom of this document on how I did that for the continuous
+data. You would need to do something similar here, by first indicating
+for each time stamp what condition it belongs to, and then adding that
+information to the fixations. Let me know if you need help, or look at
+the continuous data as explained below.
+
+Check `str(raw_dat)` to see what other information you get.
+
+<hr/>
+
+### Step 2: preparing the data for the PupilPre package
+
+To get the data into a format that pupilpre can work with, the
+asc_to_pupilpre function can be used. This function requires a couple of
+parameters:
+
+```{r, eval=TRUE}
+label <- "sub1" # Some subject identifier
+recorded_eye <- "Left"
+trial_start_msg <- "var trial [0-9]+" # Trial begin pattern
+id_pattern <- "Start of trial" # Part of trial pattern used for trial index
+trial_end_msg <- "var Response given [0-9]+" # Trial end pattern
+```
+
+The last three parameters are based on the trial begin and end messages
+mentioned earlier. The trial_start_msg should be set to a regular
+expression pattern that matches the beginning message.
+
+The function requires a unique numeric identifier in each trial begin
+message (just counting total trials works for example). The id_pattern
+should match the part of the beginning message just before the number
+that identifies the corresponding trial (spaces matter, which is why
+id_pattern contains a space right after "StartTrial").
+
+The final trial_end_msg should be set to a regular expression pattern
+that matches the end message sent to the tracker after the trial is
+over.
+
+Now the function can be used:
+
+```{r, eval=TRUE, message=FALSE}
+ppl_pre_dat <- asc_to_pupilpre(path_to_file,
+                               label,
+                               recorded_eye,
+                               trial_start_msg,
+                               id_pattern,
+                               trial_end_msg)
+```
+
+`ppl_pre_dat` contains the pupilpre data, the raw messages, and the raw
+data.
+
+```{r, eval=TRUE}
+head(ppl_pre_dat$pplpreData)
+head(ppl_pre_dat$rawMessages)
+head(ppl_pre_dat$rawData)
+```
+
+Note that `ppl_prep_data()` is already called within the asc_to_pupilpre
+function, so `ppl_pre_dat$pplpreData` can just be used for the remaining
+steps in the pupilpre vignettes
+(<https://cran.r-project.org/web/packages/PupilPre/index.html>)
+
+<hr/>
+
+### Step 3: extracting experimental data and check messages.
+
+Extract experimental data only:
+
+```{r, eval=TRUE}
+dat <- ppl_pre_dat$pplpreData[ppl_pre_dat$pplpreData$in_trial,]
+```
+
+Use `str(dat)` to see what info you have.
+
+```{r, eval=TRUE}
+str(dat)
+```
+
+If you want to see all columns in a Tibble ([a sort of
+data.frame](https://r4ds.had.co.nz/tibbles.html)), set the options:
+
+```{r}
+options(tibble.width = Inf)
+```
+
+Next, we're going to align the data to a certain message in each trial.
+Basically, you're indicating what time should be 0 in each trial, which
+is typically the stimulus onset (which for this particular dataset was
+the end of the fixation cross).
+
+```{r, eval=TRUE}
+dat_aligned <- align_msg(dat,Msg="EFixCross")
+str(dat_aligned)
+```
+
+Note that we now added a column 'Align' with the time relative to the
+stimulus.
+
+Next, we create time-series data:
+
+```{r, eval=TRUE, messages=FALSE}
+dat_time <- create_time_series(dat_aligned, Adjust = 0)
+```
+
+In this case, we didn't need to adjust the timing. However, if your
+stimulus starts for example 1000 ms after your aligned message, set
+Adjust=1000. See for more info on the above two steps:
+<https://rdrr.io/cran/PupilPre/f/vignettes/PupilPre_Message_Alignment.Rmd>.
+
+Check whether the results make sense for our messages:
+
+```{r, eval=TRUE}
+#start stimulus
+check_msg_time(dat_time, Msg = "EFixCross", ReturnData=T)
+
+#first response
+check_msg_time(dat_time, Msg = "MouseClicked")
+
+#varies, so that's good. Should correspond to RT in behavioral data file, and to the RT in the RT_Problem message:
+check_msg_time(dat_time, Msg = "RT_Problem")
+```
+
+There is certainly a clear relation between the message time of
+MouseClicked above and the measured RT_Problem (by OpenSesame), but it's
+not exactly the same. This means that somewhere the timing is not
+perfect, probably sending the messages to the eyetracker. For
+eyetracking this is typically not an issue, but you should be aware of
+this if you need specific timing from the eyetracker for, for example,
+EEG analysis.
+
+At this point, we're going to indicate that we only want to look at one
+eye, the left one if both are recorded:
+
+```{r, eval=TRUE, message=FALSE}
+dat2 <- ppl_select_recorded_eye(data = dat_time, Recording = "LorR", WhenLandR = "Left")
+```
+
+<hr/>
+
+# Part II: Removing blinks
+
+Now we have aligned the data, we need to clean it. First, we are going
+to remove off-screen points: moments when the participant looked next to
+the screen.
+
+First plot all fixations, to get an idea of the screen size:
+
+```{r, eval=TRUE, message=FALSE}
+with(dat2,plot(Gaze_X,Gaze_Y))
+```
+
+The data was probably recorded with a resolution of 1280x1024, remove
+anything outside that range:
+
+```{r, eval=TRUE, message=TRUE}
+dat3 <- recode_off_screen(data = dat2, ScreenSize = c(1280, 1024))
+```
+
+The next question is how many blinks we have:
+
+```{r, eval=TRUE, message=TRUE}
+blink_summary(dat3, Summary = "Event")
+```
+
+We can also check for missing data in general:
+
+```{r, eval=TRUE, message=TRUE}
+NA_summary(dat3, Summary = "Event", PupilColumn="Pupil")
+```
+
+This is the same number as above, so all blinks were detected by the SR
+Research software.
+
+To remove data associated with blinks, call:
+
+```{r, eval=TRUE, message=FALSE}
+dat4 <- clean_blink(dat3, BlinkPadding = c(170, 170), Delta = 5,
+                    MaxValueRun = 5, NAsAroundRun = c(2,2),
+                    LogFile = "BlinkCleanupLog.rds")
+```
+
+This removes blinks, including 170 ms padding on each side. See
+<https://rdrr.io/cran/PupilPre/f/vignettes/PupilPre_Cleanup.Rmd>
+for details.
+
+Not all blinks and artifacts might be detected by the SR Research
+software. If not, you can clean additionally using the clean_artifact
+function. Again, see [this
+page](hhttps://rdrr.io/cran/PupilPre/f/vignettes/PupilPre_Cleanup.Rmd).
+
+It's very important to not just trust these functions, but check the
+results:
+
+```{r, eval=TRUE, message=FALSE}
+plot_compare_app(dat4)
+```
+
+If not all 'weird' data points are marked in red, increase the padding.
+See for example trial `sub3.5`.
+
+Finally, we want to interpolate the now-missing data. For this we can
+use linear interpolation or a cubic spline. Let's do the latter:
+
+```{r, eval=TRUE, message=FALSE}
+dat5 <- interpolate_NAs(dat4, Method = "linear", XandY = T, MinData = 2)
+```
+
+Again, check the results:
+
+```{r, eval=TRUE, message=FALSE}
+plot_compare_app(dat5)
+```
+
+For details, see [this
+page](https://rdrr.io/cran/PupilPre/f/vignettes/PupilPre_Interpolation_and_Filtering.Rmd).
+
+<hr/>
+
+# Part III: Baselining the data
+
+As the next step, we will baseline the data, to remove long term trends
+and make the data comparable between subjects.
+
+We use subtractive baselining (see the Mathot 2018 paper), using 500ms
+pre-stimulus (the fixation duration):
+
+```{r, eval=TRUE, message=FALSE}
+dat6 <- baseline(dat5, BaselineWindow = c(-500, 0), BaselineType = "Subtraction")
+```
+
+And finally, we save the data so you don't need to do all these preps
+every time:
+
+```{r, eval=FALSE, message=FALSE}
+saveRDS(dat6, file = "FinalDat.rds", compress = "xz")
+```
+
+<hr/>
+
+# Start plotting!
+
+<https://rdrr.io/cran/PupilPre/f/vignettes/PupilPre_Plotting.Rmd>
+
+For example, the grand average:
+
+```{r, eval=TRUE, message=FALSE}
+ppl_plot_avg(data = dat6, xlim = c(-250, 2000), Column = "Pupil",
+             Condition1 = NULL, Condition2 = NULL, Cond1Labels = NA, 
+             Cond2Labels = NA, ErrorBar = FALSE, ErrorBand=TRUE, PupilPreTheme = TRUE) 
+```
+
+Naturally, you can also do this in base plot. First, we calculate the
+average:
+
+```{r, eval=TRUE, message=FALSE}
+avg <- with(dat6[dat6$Time >= -250 & dat6$Time <= 2000,], aggregate(list(Pupil=Pupil), list(Time=Time),mean))
+plot(avg$Time, avg$Pupil)
+```
+
+It is also possible to plot by condition. In that case, we first need to
+add condition information to our data set:
+
+```{r, eval=TRUE, message=FALSE}
+#add condition (this is slow code, you might be able to do better):
+dat6$condition <- 0 #ini at 0
+cond <- 'none'
+for(i in 1:length(dat6$Subject)){ #for each sample in our dataset
+    tmp <- dat6$SAMPLE_MESSAGE[i] #check whether there's a message
+    if(!is.na(tmp)){ #if there is
+        tmp <- regexpr( 'ProblemType [0-9]+', dat6$SAMPLE_MESSAGE[i]) #check whether 'ProblemType ##' is in the message
+        if(!is.na(tmp) && tmp != -1){ #if so
+            cond <- regmatches(dat6$SAMPLE_MESSAGE[i],tmp)        
+            cond <- as.numeric(regmatches(cond,regexpr("[0-9]+",cond))) #set 'cond' to the type 
+        }
+    }
+    dat6$condition[i] <- cond #and add this to the new condition variable that we added above
+}
+dat6$condition <- as.factor(dat6$condition)
+
+#now we can plot:
+ppl_plot_avg(data = dat6, xlim = c(-250, 2000), Column = "Pupil", 
+             Condition1 = "condition", Condition2 = NULL, 
+             ErrorBar = FALSE, ErrorBand=TRUE, PupilPreTheme = TRUE)
+```
+
+And yes, the result isn't pretty based on the one participant in this
+data set.
+
+Therefore, the next step is to add more participants. You need to repeat
+the preprocessing steps for each participant, and then combine the data
+sets after doing the baselining.
+
+Good luck with your analyses!
