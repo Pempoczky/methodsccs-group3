@@ -201,8 +201,6 @@ head(p1dat)
 head(p2dat)
 head(p3dat)
 
-str()
-
 full_dataset <- rbind(p1dat, p2dat, p3dat)
 str(full_dataset)
 ```
@@ -236,6 +234,14 @@ ppl_plot_avg(data = full_dataset, xlim = c(0, 5000), Column = "Pupil",
              ErrorBar = FALSE, ErrorBand=TRUE, PupilPreTheme = FALSE)
 ```
 ```{r}
+saveRDS(full_dataset, file = "FinalFullDat.rds", compress = "xz")
+```
+```{r}
+full_dataset <- readRDS("FinalFullDat.rds")
+```
+
+
+```{r}
 #check to make sure difficulty is calculated correctly, it is
 #table(dat6$difficulty, dat6$TRIAL_INDEX)
 
@@ -252,7 +258,7 @@ library(itsadug)
 
 #Jacolien's suggestion:
 full_dataset$DiffSubj = interaction(full_dataset$difficulty, full_dataset$Subject, drop=T)
-m1c = bam(Pupil ~ difficulty + s(Time, by=difficulty) + s(Time, by=DiffSubj), data=full_dataset, method="ML")
+m1c = bam(Pupil ~ difficulty + s(Time, by=difficulty) + s(Time, DiffSubj, bs='fs', m=1), data=full_dataset, discrete=TRUE)
 
 summary(m1c)
 
