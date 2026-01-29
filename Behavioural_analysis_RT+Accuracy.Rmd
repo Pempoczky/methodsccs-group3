@@ -1,0 +1,287 @@
+---
+title: "Algebra_calc"
+author: "Kefei"
+date: "2025-10-08"
+output: html_document
+---
+
+```{r setup}
+dat <- read.csv("D:/Methods_CCS/fulldata_combined.csv")
+library(plyr)
+library(plotfunctions)
+library(dplyr)
+```
+
+
+```{r}
+dat <- data.frame(
+  correct = as.factor(dat$correct),
+  problem_type = as.factor(dat$problem_type),
+  RT_response = as.numeric(dat$RT_response),
+  Condition = as.factor(dat$Condition),
+  problem_type = as.factor(dat$problem_type),
+  subject_nr = as.factor(dat$subject_nr),
+  trial = as.factor(dat$trial))
+dat_filtered <- filter(dat, correct == 1)
+```
+
+
+```{r RT_response for problem type}
+RT_problemT <- aggregate (dat_filtered$RT_response ~ dat_filtered$problem_type, FUN = mean)
+RT_problemT
+```
+```{r RT_response for subject_nr}
+RT_subNR <- aggregate(dat_filtered$RT_response ~ dat_filtered$subject_nr, FUN = mean)
+RT_subNR
+```
+```{r RT_response for condition}
+RT_con <- aggregate(dat_filtered$RT_response ~ dat_filtered$Condition, FUN = mean)
+RT_con
+
+```
+```{r RT_response for condition per problem type}
+RT_con_PT <- aggregate(dat_filtered$RT_response, by = list(dat_filtered$Condition,dat_filtered$problem_type), FUN = mean)
+RT_con_PT
+```
+```{r RT_response for Condition per subject}
+RT_con_Sub <- aggregate(dat_filtered$RT_response, by = list(dat_filtered$Condition,dat_filtered$subject_nr), FUN = mean)
+RT_con_Sub
+
+```
+```{r accuracy for Condition per problem_type + subjecct}
+# --- 1. PREPARE RT DATA ---
+
+se_func <- function(x) sd(x, na.rm = TRUE) / sqrt(length(na.omit(x)))
+
+# A. Calculate Per-Subject Stats (Mean & SE) from dat_filtered
+rt_mean <- aggregate(RT_response ~ Condition + problem_type + subject_nr, data = dat_filtered, FUN = mean)
+rt_se   <- aggregate(RT_response ~ Condition + problem_type + subject_nr, data = dat_filtered, FUN = se_func)
+
+df_rt <- merge(rt_mean, rt_se, by = c("Condition", "problem_type", "subject_nr"), suffixes = c(".mean", ".se"))
+df_rt$problem_type <- factor(df_rt$problem_type)
+df_rt$Condition    <- as.character(df_rt$Condition)
+df_rt$subject_nr   <- as.character(df_rt$subject_nr)
+
+# B. Calculate Aggregate Stats
+agg_grand <- aggregate(RT_response.mean ~ Condition + problem_type, data = df_rt, FUN = mean)
+agg_se_grand <- aggregate(RT_response.mean ~ Condition + problem_type, data = df_rt, FUN = se_func)
+agg_grand$SE <- agg_se_grand$RT_response.mean
+agg_grand$Condition <- as.character(agg_grand$Condition)
+agg_grand$problem_type <- factor(agg_grand$problem_type, levels = levels(df_rt$problem_type))
+
+# --- 2. CALCULATE GLOBAL Y-LIMITS ---
+min_y <- min(c(df_rt$RT_response.mean - df_rt$RT_response.se, agg_grand$RT_response.mean - agg_grand$SE), na.rm = TRUE)
+max_y <- max(c(df_rt$RT_response.mean + df_rt$RT_response.se, agg_grand$RT_response.mean + agg_grand$SE), na.rm = TRUE)
+global_ylim <- c(min_y, max_y)
+
+# --- 3. PLOTTING ---
+subjects   <- sort(unique(df_rt$subject_nr))
+conditions <- sort(unique(df_rt$Condition))
+cols_subj  <- rainbow(length(subjects)); names(cols_subj) <- subjects
+ltys_cond  <- seq_along(conditions); names(ltys_cond) <- conditions
+cols_cond  <- seq_along(conditions); names(cols_cond) <- conditions
+
+op <- par(no.readonly = TRUE)
+par(mfrow = c(1, 2), mar = c(5, 4, 4, 2) + 0.1, xpd = FALSE)
+
+# PANEL 1: Aggregate Mean
+plot(NA, xlim = c(1, length(levels(agg_grand$problem_type))), ylim = global_ylim,
+     xaxt = "n", xlab = "Problem Type", ylab = "Response Time (+/- SE)",
+     main = "Average RT\n(Across Subjects)")
+axis(1, at = seq_along(levels(agg_grand$problem_type)), labels = levels(agg_grand$problem_type))
+
+for (c in conditions) {
+  sub <- agg_grand[agg_grand$Condition == c, ]
+  sub <- sub[order(sub$problem_type), ]
+  x <- as.numeric(sub$problem_type)
+  
+  lines(x, sub$RT_response.mean, type = "b", lwd = 2, pch = 17, lty = ltys_cond[c], col = cols_cond[c])
+  arrows(x, sub$RT_response.mean - sub$SE, x, sub$RT_response.mean + sub$SE, angle = 90, code = 3, length = 0.05, col = cols_cond[c])
+}
+legend("top", inset = c(-0.35, 0), legend = conditions, lty = ltys_cond, col = cols_cond, lwd = 2, pch = 17, bty = "n", title = "Conditions")
+
+# PANEL 2: Per-Subject Mean
+plot(NA, xlim = c(1, length(levels(df_rt$problem_type))), ylim = global_ylim,
+     xaxt = "n", xlab = "Problem Type", ylab = "Response Time (+/- SE)",
+     main = "Average RT\n(Per Subject)")
+axis(1, at = seq_along(levels(df_rt$problem_type)), labels = levels(df_rt$problem_type))
+
+for (s in subjects) {
+  for (c in conditions) {
+    subdata <- df_rt[df_rt$subject_nr == s & df_rt$Condition == c, ]
+    if (nrow(subdata) == 0) next
+    subdata <- subdata[order(subdata$problem_type), ]
+    x <- as.numeric(subdata$problem_type)
+    
+    lines(x, subdata$RT_response.mean, type = "b", lwd = 1, pch = 19, col = cols_subj[s], lty = ltys_cond[c])
+    arrows(x, subdata$RT_response.mean - subdata$RT_response.se, x, subdata$RT_response.mean + subdata$RT_response.se, angle = 90, code = 3, length = 0.02, col = cols_subj[s], lwd = 1)
+  }
+}
+legend("top", inset = c(-0.35, 0), legend = conditions, lty = ltys_cond, lwd = 2, bty = "n", title = "Conditions")
+
+par(op)
+```
+
+
+```{r accuracy per subject}
+acc_by_sub <- aggregate(correct == 1 ~ subject_nr, data = dat, mean)
+acc_by_sub
+```
+```{r accuracy per problem type}
+
+acc_by_PT <- aggregate(correct == 1 ~ problem_type, data = dat, mean)
+acc_by_PT
+
+```
+```{r accuracy per Condition}
+acc_by_con <- aggregate(correct == 1 ~ Condition, data = dat, mean)
+acc_by_con
+```
+```{r accuracy for problem type per subject}
+acc_PT_sub <- aggregate(correct == 1 ~ problem_type + subject_nr, data = dat, mean)
+acc_PT_sub
+```
+```{r accuracy for Condition per subject }
+acc_cond_Sub <- aggregate(correct == 1 ~ Condition + subject_nr, data = dat, mean)
+acc_cond_Sub 
+
+```
+```{r accuracy for Condition per problem type pro subject}
+# --- 1. PREPARE ACCURACY DATA ---
+
+# Create local copy and convert 'correct' to numeric (0/1)
+dat_calc <- dat
+dat_calc$correct <- as.numeric(as.character(dat_calc$correct))
+
+# Define Standard Error function
+se_func <- function(x) sd(x, na.rm = TRUE) / sqrt(length(na.omit(x)))
+
+# A. Calculate Per-Subject Stats (Mean & SE)
+stats_mean <- aggregate(correct ~ Condition + problem_type + subject_nr, data = dat_calc, FUN = mean)
+colnames(stats_mean)[colnames(stats_mean) == "correct"] <- "Mean"
+
+stats_se <- aggregate(correct ~ Condition + problem_type + subject_nr, data = dat_calc, FUN = se_func)
+colnames(stats_se)[colnames(stats_se) == "correct"] <- "SE"
+
+# Merge for per-subject plot
+df_plot <- merge(stats_mean, stats_se, by = c("Condition", "problem_type", "subject_nr"))
+df_plot$problem_type <- factor(df_plot$problem_type)
+df_plot$Condition    <- as.character(df_plot$Condition)
+df_plot$subject_nr   <- as.character(df_plot$subject_nr)
+
+# B. Calculate Aggregate Stats (Grand Mean & SE across subjects)
+agg_grand <- aggregate(Mean ~ Condition + problem_type, data = df_plot, mean)
+agg_se_grand <- aggregate(Mean ~ Condition + problem_type, data = df_plot, se_func)
+agg_grand$SE <- agg_se_grand$Mean # Assign SE
+
+# --- 2. CALCULATE GLOBAL Y-LIMITS ---
+# combining variability from both individual subjects and the group mean
+min_y <- min(c(df_plot$Mean - df_plot$SE, agg_grand$Mean - agg_grand$SE), na.rm = TRUE)
+max_y <- max(c(df_plot$Mean + df_plot$SE, agg_grand$Mean + agg_grand$SE), na.rm = TRUE)
+global_ylim <- c(min_y, max_y)
+
+# --- 3. PLOTTING ---
+subjects   <- sort(unique(df_plot$subject_nr))
+conditions <- sort(unique(df_plot$Condition))
+cols_subj  <- rainbow(length(subjects)); names(cols_subj) <- subjects
+ltys_cond  <- seq_along(conditions); names(ltys_cond) <- conditions
+cols_cond  <- seq_along(conditions); names(cols_cond) <- conditions
+
+op <- par(no.readonly = TRUE)
+par(mfrow = c(1, 2), mar = c(5, 4, 4, 2) + 0.1, xpd = FALSE)
+
+# PANEL 1: Aggregate Mean
+plot(NA, xlim = c(1, length(levels(df_plot$problem_type))), ylim = global_ylim,
+     xaxt = "n", xlab = "Problem Type", ylab = "Accuracy (+/- SE)",
+     main = "Average Accuracy\n(Across Subjects)")
+axis(1, at = seq_along(levels(df_plot$problem_type)), labels = levels(df_plot$problem_type))
+
+for (c in conditions) {
+  sub <- agg_grand[agg_grand$Condition == c, ]
+  sub <- sub[order(sub$problem_type), ]
+  x <- as.numeric(sub$problem_type)
+  
+  lines(x, sub$Mean, type = "b", lwd = 2, pch = 17, lty = ltys_cond[c], col = cols_cond[c])
+  arrows(x, sub$Mean - sub$SE, x, sub$Mean + sub$SE, angle = 90, code = 3, length = 0.05, col = cols_cond[c])
+}
+legend("bottom", inset = c(-0.35, 0), legend = conditions, lty = ltys_cond, col = cols_cond, lwd = 2, pch = 17, bty = "n", title = "Conditions")
+
+# PANEL 2: Per-Subject Mean
+plot(NA, xlim = c(1, length(levels(df_plot$problem_type))), ylim = global_ylim,
+     xaxt = "n", xlab = "Problem Type", ylab = "Accuracy (+/- SE)",
+     main = "Accuracy by Subject\n(Individual SE)")
+axis(1, at = seq_along(levels(df_plot$problem_type)), labels = levels(df_plot$problem_type))
+
+for (s in subjects) {
+  for (c in conditions) {
+    subdata <- df_plot[df_plot$subject_nr == s & df_plot$Condition == c, ]
+    if (nrow(subdata) == 0) next
+    subdata <- subdata[order(subdata$problem_type), ]
+    x <- as.numeric(subdata$problem_type)
+    
+    lines(x, subdata$Mean, type = "b", lwd = 1, pch = 19, col = cols_subj[s], lty = ltys_cond[c])
+    arrows(x, subdata$Mean - subdata$SE, x, subdata$Mean + subdata$SE, angle = 90, code = 3, length = 0.02, col = cols_subj[s], lwd = 1)
+  }
+}
+legend("bottom", inset = c(-0.35, 0), legend = conditions, lty = ltys_cond, lwd = 2, bty = "n", title = "Conditions")
+
+par(op)
+```
+```{r}
+df_wide <- reshape(RT_con_PT_Sub, idvar = c("subject_nr","problem_type"),
+                   timevar = "Condition", direction = "wide")
+# Columns look like: RT_response.Progressive, RT_response.Randomised
+
+# 3) Split by subject and run paired t-test
+spl <- split(df_wide, df_wide$subject_nr)
+res_list <- lapply(spl, function(d) {
+  x <- d[["RT_response.Progressive"]]
+  y <- d[["RT_response.Randomised"]]
+  ok <- is.finite(x) & is.finite(y)
+  if (sum(ok) < 2) {
+    return(c(n_pairs=sum(ok), t=NA, df=NA, p=NA,
+             mean_diff=mean(x[ok]-y[ok]), conf_low=NA, conf_high=NA))
+  }
+  tt <- t.test(x[ok], y[ok], paired = TRUE)
+  c(n_pairs = sum(ok),
+    t = unname(tt$statistic),
+    df = unname(tt$parameter),
+    p = tt$p.value,
+    mean_diff = unname(tt$estimate),  # Progressive − Randomised
+    conf_low = tt$conf.int[1],
+    conf_high = tt$conf.int[2])
+})
+res <- data.frame(subject_nr = names(res_list), do.call(rbind, res_list), row.names = NULL)
+print(res)
+```
+```{r}
+# wide form
+dfw <- reshape(RT_con_PT_Sub,
+               idvar = c("subject_nr","problem_type"),
+               timevar = "Condition",
+               direction = "wide")  # gives RT_response.Progressive / .Randomised
+
+# paired t-test per subject
+by(dfw, dfw$subject_nr, function(d) {
+  ok <- complete.cases(d[, c("RT_response.Progressive","RT_response.Randomised")])
+  t.test(d$RT_response.Progressive[ok],
+         d$RT_response.Randomised[ok],
+         paired = TRUE)
+})
+```
+```{r}
+# wide form
+dfw1 <- reshape(acc_cond_PT_sub,
+               idvar = c("subject_nr","problem_type"),
+               timevar = "Condition",
+               direction = "wide")  
+
+# paired t-test per subject
+by(dfw1, dfw1$subject_nr, function(d) {
+  ok <- complete.cases(d[, c("Corre.Progressive","Corre.Randomised")])
+  t.test(d$Corre.Progressive[ok],
+         d$Corre.Randomised[ok],
+         paired = TRUE)
+})
+```
+
